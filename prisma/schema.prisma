@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+////////////////////
+/// ENUMS
+////////////////////
+
+enum Role {
+  CLIENT
+  PROVIDER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum PaymentProvider {
+  WEBPAY
+  MERCADOPAGO
+}
+
+enum PaymentStatus {
+  INITIATED
+  CONFIRMED
+  FAILED
+}
+
+////////////////////
+/// MODELS
+////////////////////
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  password        String
+  phone           String?
+  role            Role
+  isEmailVerified Boolean  @default(false)
+
+  provider        Provider?
+  orders          Order[]  @relation("ClientOrders")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Provider {
+  id        String   @id @default(uuid())
+  name      String
+  location  String
+  logoUrl   String?
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+
+  services  Service[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  imageUrl  String?
+
+  services  Service[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Service {
+  id           String   @id @default(uuid())
+  name         String
+  description  String
+
+  price        Float
+  commission   Float
+  netAmount    Float
+
+  hasHomeVisit Boolean  @default(false)
+
+  providerId   String
+  provider     Provider @relation(fields: [providerId], references: [id])
+
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id])
+
+  orders       Order[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Order {
+  id        String      @id @default(uuid())
+
+  clientId  String
+  client    User        @relation("ClientOrders", fields: [clientId], references: [id])
+
+  serviceId String
+  service   Service     @relation(fields: [serviceId], references: [id])
+
+  status    OrderStatus @default(PENDING)
+  total     Float
+
+  payment   Payment?
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model Payment {
+  id        String          @id @default(uuid())
+
+  orderId   String          @unique
+  order     Order           @relation(fields: [orderId], references: [id])
+
+  amount    Float
+  provider  PaymentProvider
+  status    PaymentStatus
+
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}

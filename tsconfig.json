@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    /* 🧠 NestJS + GraphQL (CRÍTICO) */
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": false,
+    "isolatedModules": false,
+
+    /* ⚙️ Runtime */
+    "target": "ES2023",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+
+    /* 📦 Interop */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
+    /* 🏗 Build */
+    "declaration": true,
+    "removeComments": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+
+    /* 🔍 Type safety */
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false,
+
+    /* 🧪 Globals */
+    "types": ["node", "jest"]
+  }
+}
