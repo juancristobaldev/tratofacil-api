@@ -7,6 +7,12 @@ type AuthType {
   user: User!
 }
 
+input BankInput {
+  accountNumber: String!
+  accountType: String!
+  bankName: String!
+}
+
 type Category {
   id: ID!
   imageUrl: String
@@ -14,10 +20,22 @@ type Category {
   slug: String!
 }
 
+input CredentialsInput {
+  email: String!
+  password: String!
+}
+
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
 scalar DateTime
+
+input IdentityInput {
+  firstName: String!
+  lastName: String!
+  phone: String!
+  rut: String!
+}
 
 input LoginInput {
   email: String!
@@ -30,6 +48,7 @@ type Mutation {
   initiatePayment(orderId: ID!, returnUrl: String!): WebpayResponse!
   login(loginInput: LoginInput!): AuthType!
   register(registerInput: RegisterInput!): User!
+  registerProvider(input: ProviderRegistrationInput!): Provider!
   removeService(id: ID!): Service!
   removeUser(id: ID!): Boolean!
 }
@@ -50,16 +69,22 @@ enum OrderStatus {
 }
 
 type Provider {
-  createdAt: DateTime!
   id: ID!
   location: String!
   logoUrl: String
   name: String!
   services: [Service!]!
-  user: User!
+}
+
+input ProviderRegistrationInput {
+  bank: BankInput!
+  credentials: CredentialsInput!
+  identity: IdentityInput!
+  services: ServicesInput!
 }
 
 type Query {
+  me: User
   service(id: ID!): Service!
   services: [Service!]!
   servicesByCategory(categoryId: ID!): [Service!]!
@@ -91,6 +116,10 @@ type Service {
   netAmount: Float!
   price: Float!
   provider: Provider!
+}
+
+input ServicesInput {
+  categories: [String!]!
 }
 
 type User {

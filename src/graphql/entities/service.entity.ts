@@ -35,3 +35,21 @@ export class Service {
   @Field()
   createdAt: Date;
 }
+
+@ObjectType()
+export class ServiceEntity {
+  @Field(() => ID)
+  id: string;
+
+  @Field()
+  name: string;
+
+  @Field(() => Float)
+  price: number;
+
+  @Field(() => Float)
+  commission: number;
+
+  @Field(() => Float)
+  netAmount: number;
+}

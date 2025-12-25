@@ -6,6 +6,57 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class ProviderService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // provider.service.ts
+async createWithServices(
+    userId: string,
+    providerData: {
+      name: string;
+      location: string;
+    },
+    categories: string[],
+  ) {
+    return this.prisma.$transaction(async prisma => {
+      const provider = await prisma.provider.create({
+        data: {
+          ...providerData,
+          userId,
+        },
+      });
+  
+      for (const slug of categories) {
+        let category = await prisma.category.findUnique({
+          where: { slug },
+        });
+  
+        
+        if (!category) {
+         category = await prisma.category.create({
+                data: { slug:`${slug}-${new Date()}`, name:slug },
+              });
+
+       
+        }
+  
+        await prisma.service.create({
+          data: {
+            name: category.name,
+            description: '',
+            price: 0,
+            commission: 0,
+            netAmount: 0,
+            providerId: provider.id,
+            categoryId: category.id,
+          },
+        });
+      }
+  
+      return prisma.provider.findUnique({
+        where: { id: provider.id },
+        include: { services: true },
+      });
+    });
+  }
+  
   /**
    * Crear proveedor (1–1 con User)
    */

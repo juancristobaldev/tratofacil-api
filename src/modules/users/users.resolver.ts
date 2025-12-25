@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, ID, Context } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -11,6 +11,13 @@ import { User } from 'src/graphql/entities/user.entity';
 @Resolver(() => User)
 export class UsersResolver {
   constructor(private readonly usersService: UserService) {}
+
+  @Query(() => User, { name: 'me', nullable: true })
+  @UseGuards(JwtAuthGuard)
+  async me(@Context() context: any) {
+    // El JwtAuthGuard ya inyectó el usuario en el request
+    return context.req.user;
+  }
 
   @Query(() => [User], { name: 'users' })
   @Roles(Role.ADMIN)
