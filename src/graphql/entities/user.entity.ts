@@ -1,5 +1,4 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
-import { Role } from '../enums/role.enum';
 
 @ObjectType()
 export class User {
@@ -9,16 +8,17 @@ export class User {
   @Field()
   email: string;
 
-  // clientes informales
-  @Field({ nullable: true })
-  phone?: string;
+  // Debes indicar explícitamente el tipo para campos opcionales
+  @Field(() => String, { nullable: true })
+  phone?: string | null;
 
-  @Field(() => Role)
-  role: Role;
+  @Field()
+  role: string;
 
   @Field()
   isEmailVerified: boolean;
 
-  @Field()
+  // Para Date, siempre usar (() => Date)
+  @Field(() => Date)
   createdAt: Date;
 }

@@ -3,7 +3,6 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 
-
 @Global()
 @Module({
   imports: [
@@ -13,7 +12,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
     }),
   ],
   providers: [
-    PrismaService,
+    PrismaService,  // Nest se encargará de instanciarlo
     AuthService,
   ],
   exports: [

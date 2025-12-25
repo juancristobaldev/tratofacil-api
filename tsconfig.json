@@ -7,8 +7,8 @@
     "isolatedModules": false,
 
     /* ⚙️ Runtime */
-    "target": "ES2023",
-    "module": "CommonJS",
+"module": "CommonJS",
+"target": "ES2020",
     "moduleResolution": "Node",
 
     /* 📦 Interop */
@@ -25,11 +25,10 @@
 
     /* 🔍 Type safety */
     "skipLibCheck": true,
+    "strict": true,
     "strictNullChecks": true,
+    "strictPropertyInitialization": false,
     "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": false,
-    "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false,
 
     /* 🧪 Globals */
     "types": ["node", "jest"]

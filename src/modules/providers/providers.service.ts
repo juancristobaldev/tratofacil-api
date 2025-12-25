@@ -1,88 +1,82 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 
+
 @Injectable()
-export class ServiceService {
+export class ProviderService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Crear un servicio ofrecido por un proveedor
+   * Crear proveedor (1–1 con User)
    */
   async create(
-    providerId: string,
+    userId: string,
     data: {
       name: string;
-      description: string;
-      price: number;
-      commission: number;
-      categoryId: string;
-      hasHomeVisit?: boolean;
+      location: string;
+      logoUrl?: string;
     },
   ) {
+    const exists = await this.prisma.provider.findUnique({
+      where: { userId },
+    });
+
+    if (exists) {
+      throw new ConflictException('El usuario ya tiene un proveedor');
+    }
+
+    return this.prisma.provider.create({
+      data: {
+        ...data,
+        userId,
+      },
+    });
+  }
+
+  /**
+   * Obtener proveedor por userId
+   */
+  async findByUser(userId: string) {
     const provider = await this.prisma.provider.findUnique({
-      where: { id: providerId },
+      where: { userId },
+      include: {
+        services: true,
+      },
     });
 
     if (!provider) {
-      throw new ForbiddenException('Proveedor inválido');
+      throw new NotFoundException('Proveedor no encontrado');
     }
 
-    const category = await this.prisma.category.findUnique({
-      where: { id: data.categoryId },
-    });
-
-    if (!category) {
-      throw new NotFoundException('Categoría no existe');
-    }
-
-    const netAmount = data.price - data.commission;
-
-    return this.prisma.service.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        commission: data.commission,
-        netAmount,
-        hasHomeVisit: data.hasHomeVisit ?? false,
-        providerId,
-        categoryId: data.categoryId,
-      },
-    });
+    return provider;
   }
 
   /**
-   * Listar servicios por categoría
+   * Obtener proveedor por id
    */
-  listByCategory(categoryId: string) {
-    return this.prisma.service.findMany({
-      where: { categoryId },
-      include: {
-        provider: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  /**
-   * Obtener servicio por id
-   */
-  findById(id: string) {
-    return this.prisma.service.findUnique({
+  async findById(id: string) {
+    const provider = await this.prisma.provider.findUnique({
       where: { id },
       include: {
-        provider: true,
-        category: true,
+        services: true,
       },
     });
+
+    if (!provider) {
+      throw new NotFoundException('Proveedor no encontrado');
+    }
+
+    return provider;
   }
 
   /**
-   * Listar servicios de un proveedor
+   * Listar todos los proveedores
    */
-  listByProvider(providerId: string) {
-    return this.prisma.service.findMany({
-      where: { providerId },
+  list() {
+    return this.prisma.provider.findMany({
+      include: {
+        user: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

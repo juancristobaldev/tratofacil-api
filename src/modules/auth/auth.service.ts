@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Role } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { User } from 'src/graphql/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -50,10 +51,10 @@ export class AuthService {
     password: string;
     role?: Role;
     phone?: string;
-  }) {
+  }) :Promise <User>{
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    return this.prisma.user.create({
+    return await this.prisma.user.create({
       data: {
         email: data.email,
         password: hashedPassword,

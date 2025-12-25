@@ -1,0 +1,108 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type AuthType {
+  accessToken: String!
+  user: User!
+}
+
+type Category {
+  id: ID!
+  imageUrl: String
+  name: String!
+  slug: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type Mutation {
+  confirmPayment(token: String!): Order!
+  createService(categoryId: String!, description: String!, name: String!, price: Float!, providerId: String!): Service!
+  initiatePayment(orderId: ID!, returnUrl: String!): WebpayResponse!
+  login(loginInput: LoginInput!): AuthType!
+  register(registerInput: RegisterInput!): User!
+  removeService(id: ID!): Service!
+  removeUser(id: ID!): Boolean!
+}
+
+type Order {
+  client: User!
+  createdAt: DateTime!
+  id: ID!
+  service: Service!
+  status: OrderStatus!
+  total: Float!
+}
+
+enum OrderStatus {
+  CANCELLED
+  PAID
+  PENDING
+}
+
+type Provider {
+  createdAt: DateTime!
+  id: ID!
+  location: String!
+  logoUrl: String
+  name: String!
+  services: [Service!]!
+  user: User!
+}
+
+type Query {
+  service(id: ID!): Service!
+  services: [Service!]!
+  servicesByCategory(categoryId: ID!): [Service!]!
+  user(id: ID!): User!
+  users: [User!]!
+}
+
+input RegisterInput {
+  email: String!
+  password: String!
+  phone: String
+  role: Role
+}
+
+enum Role {
+  ADMIN
+  CLIENT
+  PROVIDER
+}
+
+type Service {
+  category: Category!
+  commission: Float!
+  createdAt: DateTime!
+  description: String!
+  hasHomeVisit: Boolean!
+  id: ID!
+  name: String!
+  netAmount: Float!
+  price: Float!
+  provider: Provider!
+}
+
+type User {
+  createdAt: DateTime!
+  email: String!
+  id: ID!
+  isEmailVerified: Boolean!
+  phone: String
+  role: String!
+}
+
+type WebpayResponse {
+  token: String!
+  url: String!
+}
