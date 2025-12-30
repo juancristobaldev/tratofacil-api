@@ -1,12 +1,13 @@
-import { Resolver, Mutation, Args, ID } from '@nestjs/graphql';
+import { Resolver, Mutation, Args, ID, Context } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { PaymentService } from 'src/modules/payments/payments.service';
 
-import { Order } from 'src/graphql/entities/order.entity';
+import { CreateOrderInput, Order } from 'src/graphql/entities/order.entity';
 
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WebpayResponse } from 'src/graphql/entities/webpay.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { randomUUID } from 'crypto';
 
 @Resolver()
 export class PaymentsResolver {
@@ -15,6 +16,46 @@ export class PaymentsResolver {
     private readonly prisma: PrismaService,
   ) {}
 
+  @Mutation(() => Order)
+  @UseGuards(JwtAuthGuard)
+  async createOrder(
+    @Args('input') input: CreateOrderInput,
+    @Context() context: any) {
+    const user = context.req.user;
+
+
+    const service = await this.prisma.service.findUnique({
+      where: { id: input.serviceId },
+    });
+  
+
+const buyOrder = `ORD-${Date.now()}`; // ej: ORD-1766871992000
+    if (!service) {
+      throw new Error('Servicio no existe');
+    }
+  
+    // 1️⃣ Crear orden
+    const order = await this.prisma.order.create({
+      data: {
+        id:buyOrder,
+        clientId: user.id,
+        serviceId: service.id,
+        total: service.price,
+      },
+    });
+  
+    // 2️⃣ Crear payment asociado
+    await this.prisma.payment.create({
+      data: {
+        orderId: buyOrder,
+        amount: service.price,
+        provider: 'WEBPAY',
+        status: 'INITIATED',
+      },
+    });
+  
+    return order;
+  }
   /**
    * Paso 1: Iniciar el pago
    * Devuelve el token y la URL a la que el frontend debe redirigir al usuario.
@@ -25,7 +66,7 @@ export class PaymentsResolver {
     @Args('orderId', { type: () => ID }) orderId: string,
     @Args('returnUrl') returnUrl: string,
   ) {
-    return this.paymentService.createWebpayTransaction(orderId, returnUrl);
+    return this.paymentService.createWebpayTransaction(orderId,  "http://localhost:3000/callback");
   }
 
   /**

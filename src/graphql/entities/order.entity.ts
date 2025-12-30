@@ -1,4 +1,4 @@
-import { ObjectType, Field, ID, Float } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Float, InputType } from '@nestjs/graphql';
 import { User } from './user.entity';
 import { Service } from './service.entity';
 import { OrderStatus } from '../enums/order-status.enum';
@@ -22,4 +22,11 @@ export class Order {
 
   @Field()
   createdAt: Date;
+}
+
+
+@InputType()
+export class CreateOrderInput {
+  @Field(() => ID)
+  serviceId: string;
 }

@@ -15,13 +15,8 @@ export class PaymentService {
   constructor(private readonly prisma: PrismaService) {
     this.webpay = new WebpayPlus.Transaction({
       commerceCode:
-        process.env.WEBPAY_COMMERCE_CODE ||
-        IntegrationCommerceCodes.WEBPAY_PLUS,
-  
-      apiKey:
-        process.env.WEBPAY_API_KEY ||
-        IntegrationApiKeys.WEBPAY,
-  
+       "597055555532",
+      apiKey:"579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C",
       environment:
         process.env.WEBPAY_ENV === 'PRODUCTION'
           ? Environment.Production
@@ -36,18 +31,21 @@ export class PaymentService {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
     });
-
+  
     if (!order) {
       throw new Error('Orden no existe');
     }
-
+  
+    const buyOrder = order.id; // 👈 ya es corto y válido
+    const sessionId = `SESSION-${order.id.slice(0, 8)}`;
+  
     const response = await this.webpay.create(
-      orderId,
-      orderId,
+      buyOrder,
+      sessionId,
       order.total,
       returnUrl,
     );
-
+  
     return {
       token: response.token,
       url: response.url,

@@ -5,47 +5,33 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class ServicesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Crea un servicio calculando automáticamente comisión y monto neto
-   */
-
-  // ... otros métodos del service
-
-async remove(id: string) {
-  // Primero verificamos si el servicio existe usando el método findOne que ya lanza NotFoundException
-  await this.findOne(id);
-
-  // Procedemos a la eliminación
-  return this.prisma.service.delete({
-    where: { id },
-    include: {
-      category: true,
-      provider: true,
-    },
-  });
-}
-
+  // -------------------- CREAR SERVICIO --------------------
   async create(data: {
     name: string;
     description: string;
     price: number;
-    categoryId: string;
+    categoryId: string; // este puede ser el slug o nombre
     providerId: string;
+    hasHomeVisit: boolean;
   }) {
-    // 1. Realizar los cálculos fuera del objeto 'data' inicial
     const commission = data.price * 0.1;
     const netAmount = data.price - commission;
-
-    // 2. Pasar todas las propiedades requeridas por el esquema de Prisma
+  
     return this.prisma.service.create({
       data: {
         name: data.name,
         description: data.description,
         price: data.price,
-        commission: commission, // Ahora es una variable local válida
-        netAmount: netAmount,     // Ahora es una variable local válida
-        categoryId: data.categoryId,
-        providerId: data.providerId,
+        commission,
+        netAmount,
+        hasHomeVisit: data.hasHomeVisit,
+        provider: { connect: { id: data.providerId } },
+        category: {
+          connectOrCreate: {
+            where: { slug: data.categoryId }, // o name: data.categoryId si usas nombre
+            create: { name: data.categoryId, slug: data.categoryId },
+          },
+        },
       },
       include: {
         category: true,
@@ -53,23 +39,59 @@ async remove(id: string) {
       },
     });
   }
-  async findByCategory(categoryId: string) {
-    return this.prisma.service.findMany({
-      where: {
-        categoryId: categoryId,
+  
+  // -------------------- ACTUALIZAR SERVICIO --------------------
+  async update(
+    id: string,
+    data: {
+      name: string;
+      description: string;
+      price: number;
+
+      hasHomeVisit: boolean;
+    },
+  ) {
+    const existing = await this.findOne(id); // Verifica si existe
+    if(!existing) return null
+    const commission = data.price * 0.1;
+    const netAmount = data.price - commission;
+
+    return this.prisma.service.update({
+      where: { id },
+      data: {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        commission,
+        netAmount,
+  
+        hasHomeVisit: data.hasHomeVisit,
       },
       include: {
-        category: true, // Incluye datos de la categoría
-        provider: true, // Incluye datos del proveedor
+        category: true,
+        provider: true,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
+    });
   }
+
+  // -------------------- ELIMINAR SERVICIO --------------------
+  async remove(id: string) {
+    await this.findOne(id); // Verifica existencia
+
+    return this.prisma.service.delete({
+      where: { id },
+      include: {
+        category: true,
+        provider: true,
+      },
+    });
+  }
+
+  // -------------------- CONSULTAS --------------------
   async findAll() {
     return this.prisma.service.findMany({
       include: { category: true, provider: true },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -81,4 +103,78 @@ async remove(id: string) {
     if (!service) throw new NotFoundException('Servicio no encontrado');
     return service;
   }
+
+  async findByCategory(categoryId: string) {
+    const services = await this.prisma.service.findMany({
+      where: {
+        OR: [
+          { category: { id: categoryId } },
+          { category: { name: categoryId } },
+        ],
+      },
+      include: {
+        category: true,
+        provider: true, // aquí cada provider tiene info, pero también necesitamos precio
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  
+    // Agrupar por nombre de servicio
+    const grouped = services.reduce<Record<string, any>>((acc, service) => {
+      if (!acc[service.name]) {
+        acc[service.name] = {
+          id: service.id,
+          name: service.name,
+          description: service.description,
+          category: service.category,
+          providers: service.provider.map((p) => ({
+            id: p.id,
+            name: p.name,
+            location: p.location,
+            price: service.price, // precio de ese proveedor para este servicio
+          })),
+        };
+      } else {
+        // agregar proveedores sin duplicar
+        service.provider.forEach((p) => {
+          if (!acc[service.name].providers.find((prov: any) => prov.id === p.id)) {
+            acc[service.name].providers.push({
+              id: p.id,
+              name: p.name,
+              location: p.location,
+              price: service.price,
+            });
+          }
+        });
+      }
+      return acc;
+    }, {});
+  
+    return Object.values(grouped);
+  }
+
+  async findServiceDetail(
+    serviceId: string,
+    providerId: string,
+  ) {
+    return this.prisma.service.findFirst({
+      where: {
+        id: serviceId,
+ 
+        provider: {
+          some: {
+            id: providerId,
+          },
+        },
+      },
+      include: {
+        provider: {
+          where: {
+            id: providerId,
+          },
+        },
+      },
+    });
+  }
+
 }

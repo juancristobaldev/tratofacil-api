@@ -17,6 +17,9 @@ import { AuthService } from 'src/modules/auth/auth.service';
       const req = ctx.getContext().req;
   
       const authHeader = req.headers.authorization;
+
+      console.log(authHeader)
+
       if (!authHeader) {
         throw new UnauthorizedException('Token requerido');
       }

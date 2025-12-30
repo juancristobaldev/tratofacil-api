@@ -15,6 +15,7 @@ import { ServicesModule } from './modules/services/services.module';
 import { OrderModule } from './modules/order/order.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ConfigModule } from '@nestjs/config';
+import { WordpressModule } from './modules/wordpress/wordpress.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ConfigModule } from '@nestjs/config';
     CoreModule,
     OrderModule,
     PaymentsModule,
+    WordpressModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -38,99 +38,165 @@ enum PaymentStatus {
 /// MODELS
 ////////////////////
 
+/// Usuarios
 model User {
-  id              String   @id @default(uuid())
-  email           String   @unique
-  password        String
-  phone           String?
-  role            Role
-  isEmailVerified Boolean  @default(false)
+  id              Int       @id @map("ID") @default(autoincrement())
+  username        String    @map("user_login") @unique
+  email           String    @map("user_email") @unique
+  password        String    @map("user_pass")
+  displayName     String    @map("display_name")
+  role            Role      @default(CLIENT)
+  isEmailVerified Boolean   @default(false)
 
+  orders          Order[]   @relation("ClientOrders")
   provider        Provider?
-  orders          Order[]  @relation("ClientOrders")
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @map("user_registered")
+  updatedAt       DateTime  @updatedAt
+
+  usermeta        UserMeta[]
 }
 
+/// Metadatos de usuarios
+model UserMeta {
+  id       Int    @id @map("umeta_id") @default(autoincrement())
+  userId   Int
+  key      String @map("meta_key")
+  value    String @map("meta_value")
+
+  user     User   @relation(fields: [userId], references: [id])
+}
+
+/// Proveedores opcionales
 model Provider {
-  id        String   @id @default(uuid())
+  id        Int       @id @default(autoincrement())
   name      String
-  location  String
+  location  String?
   logoUrl   String?
 
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
+  userId    Int       @unique
+  user      User      @relation(fields: [userId], references: [id])
 
+  bank      BankAccount?
   services  Service[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+/// Cuenta bancaria del proveedor
+model BankAccount {
+  id            Int      @id @default(autoincrement())
+  bankName      String
+  accountNumber String
+  accountType   String
+
+  providerId    Int      @unique
+  provider      Provider @relation(fields: [providerId], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// Categorías principales de WooCommerce
 model Category {
-  id        String   @id @default(uuid())
-  name      String
-  slug      String   @unique
+  id        Int        @id @map("term_id")
+  name      String     @map("name")
+  slug      String     @map("slug") @unique
+  description String?  @map("description")
   imageUrl  String?
 
-  services  Service[]
+  /// Subcategorías (servicios)
+  services  Service[]  @relation("CategoryServices", fields: [id], references: [categoryId])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  parentId  Int?       @map("parent")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
+/// Subcategorías de la categoría → mapeadas como servicios
 model Service {
-  id           String   @id @default(uuid())
-  name         String
-  description  String
+  id           Int       @id @map("term_id")
+  name         String    @map("name")
+  slug         String    @map("slug") @unique
+  description  String?   @map("description")
 
-  price        Float
-  commission   Float
-  netAmount    Float
+  categoryId   Int
+  category     Category  @relation("CategoryServices", fields: [categoryId], references: [id])
 
-  hasHomeVisit Boolean  @default(false)
+  products     Product[]
 
-  providerId   String
-  provider     Provider @relation(fields: [providerId], references: [id])
-
-  categoryId   String
-  category     Category @relation(fields: [categoryId], references: [id])
-
-  orders       Order[]
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
+/// Productos → productos de WooCommerce
+model Product {
+  id          Int       @id @map("ID")
+  name        String    @map("post_title")
+  description String?   @map("post_content")
+  price       Float?
+  netAmount   Float?
+  commission  Float?
+
+  serviceId   Int
+  service     Service   @relation(fields: [serviceId], references: [id])
+
+  orders      Order[]
+
+  createdAt   DateTime  @map("post_date")
+  updatedAt   DateTime  @map("post_modified")
+
+  postmeta    PostMeta[]
+}
+
+/// Metadatos de productos
+model PostMeta {
+  id       Int     @id @map("meta_id") @default(autoincrement())
+  postId   Int
+  key      String  @map("meta_key")
+  value    String  @map("meta_value")
+
+  product  Product @relation(fields: [postId], references: [id])
+}
+
+/// Pedidos
 model Order {
-  id        String      @id @default(uuid())
+  id          Int         @id @default(autoincrement())
+  clientId    Int
+  client      User        @relation("ClientOrders", fields: [clientId], references: [id])
 
-  clientId  String
-  client    User        @relation("ClientOrders", fields: [clientId], references: [id])
+  productId   Int
+  product     Product     @relation(fields: [productId], references: [id])
 
-  serviceId String
-  service   Service     @relation(fields: [serviceId], references: [id])
+  status      OrderStatus @default(PENDING)
+  total       Float?
 
-  status    OrderStatus @default(PENDING)
-  total     Float
+  payment     Payment?
 
-  payment   Payment?
-
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
+/// Pagos
 model Payment {
-  id        String          @id @default(uuid())
-
-  orderId   String          @unique
-  order     Order           @relation(fields: [orderId], references: [id])
+  id        Int           @id @default(autoincrement())
+  orderId   Int           @unique
+  order     Order         @relation(fields: [orderId], references: [id])
 
   amount    Float
   provider  PaymentProvider
   status    PaymentStatus
 
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+/// Verificación de correo (opcional)
+model EmailVerification {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  code      String
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
 }

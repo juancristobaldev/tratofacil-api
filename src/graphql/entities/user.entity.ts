@@ -1,4 +1,6 @@
-import { ObjectType, Field, ID } from '@nestjs/graphql';
+import { ObjectType, Field, ID, InputType } from '@nestjs/graphql';
+import { IsEmail, IsOptional } from 'class-validator';
+import { Provider } from './provider.entity';
 
 @ObjectType()
 export class User {
@@ -21,4 +23,34 @@ export class User {
   // Para Date, siempre usar (() => Date)
   @Field(() => Date)
   createdAt: Date;
+
+  @Field(() => Provider,{ nullable: true })
+
+  provider?: Provider;
+}
+
+
+
+@InputType()
+export class UpdateUserInput {
+  @Field(() => ID)
+  userId: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  phone?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  firstName?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  lastName?: string;
+  
 }

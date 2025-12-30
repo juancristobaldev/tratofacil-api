@@ -30,15 +30,10 @@ export class ServicesInput {
 
 @InputType()
 export class ProviderRegistrationInput {
-  @Field(() => CredentialsInput)
-  credentials: CredentialsInput;
-
   @Field(() => IdentityInput)
   identity: IdentityInput;
 
+
   @Field(() => BankInput)
   bank: BankInput;
-
-  @Field(() => ServicesInput)
-  services: ServicesInput;
 }
