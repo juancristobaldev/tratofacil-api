@@ -67,6 +67,7 @@ export class UsersResolver {
     console.log(`Verification code for ${input.email}: ${code}`);
     return true;
   }
+  // src/graphql/resolvers/users.resolver.ts
 
   @Mutation(() => String)
   async confirmEmailAndCreateUser(
@@ -75,10 +76,8 @@ export class UsersResolver {
     @Args('identity') identity: IdentityInput,
   ) {
     await this.usersService.validateEmailCode(credentials.email, code);
-
     const hashedPassword = await bcrypt.hash(credentials.password, 10);
 
-    // Creamos usuario en wp_users y el teléfono en wp_usermeta
     const user = await this.prisma.user.create({
       data: {
         email: credentials.email,
@@ -88,16 +87,15 @@ export class UsersResolver {
         role: 'PROVIDER',
         isEmailVerified: true,
         usermeta: {
-          create: {
-            key: 'billing_phone',
-            value: identity.phone,
-          },
+          create: { key: 'billing_phone', value: identity.phone },
         },
       },
     });
 
+    // ALINEACIÓN DEL TOKEN:
+    // El 'sub' debe ser user.id (que es un Int de MySQL)
     return this.jwt.sign({
-      sub: user.id,
+      sub: user.id, // Coherente con el schema.prisma
       email: user.email,
       role: user.role,
     });
