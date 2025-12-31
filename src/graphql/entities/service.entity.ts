@@ -1,84 +1,85 @@
-import { ObjectType, Field, ID, Float } from '@nestjs/graphql';
+import { ObjectType, Field, Int, Float } from '@nestjs/graphql';
 import { Provider } from './provider.entity';
 import { Category } from './category.entity';
 
-
 @ObjectType()
 export class ServiceProvider {
-  @Field(() => ID)
-  id: string;
+  @Field(() => Int) // ID del Product (wp_posts)
+  id: number;
 
   @Field()
   name: string;
 
-  @Field(() => Float)
+  @Field(() => Float, { nullable: true })
   price: number;
 
-  @Field(() => Float)
+  @Field(() => Float, { nullable: true })
   commission: number;
-  @Field()
-  location: string;
-  @Field(() => Float)
+
+  @Field(() => Float, { nullable: true })
   netAmount: number;
+
+  @Field({ nullable: true })
+  location?: string; // Extraído del Provider vinculado
 }
+
 @ObjectType()
 export class ServiceDetail {
-  @Field(() => ID)
-  id: string;
+  @Field(() => Int)
+  id: number;
 
   @Field()
   name: string;
 
-  @Field()
-  description: string;
+  @Field({ nullable: true })
+  description?: string;
 
-  @Field(() => Float)
+  @Field(() => Float, { nullable: true })
   price: number;
 
-  @Field(() => Float)
+  @Field(() => Float, { nullable: true })
   commission: number;
 
-  @Field(() => Float)
+  @Field(() => Float, { nullable: true })
   netAmount: number;
 
-  @Field()
-  hasHomeVisit: boolean;
+  @Field(() => Boolean)
+  hasHomeVisit: boolean; // Se resuelve desde PostMeta 'has_home_visit'
 
-  // 👇 UN provider específico
   @Field(() => Provider)
   provider: Provider;
 }
 
 @ObjectType()
 export class Service {
-  @Field(() => ID)
-  id: string;
+  @Field(() => Int) // term_id en wp_terms
+  id: number;
 
   @Field()
   name: string;
 
-  @Field()
-  description: string;
+  @Field({ nullable: true })
+  description?: string;
 
-  @Field(() => Float,{nullable:true})
-  price?: number;
+  @Field(() => Float, { nullable: true })
+  price?: number; // Precio base o promedio si se desea
 
-  @Field(() => Float,{nullable:true})
+  @Field(() => Float, { nullable: true })
   commission?: number;
 
-  @Field(() => Float,{nullable:true})
+  @Field(() => Float, { nullable: true })
   netAmount?: number;
 
-  @Field()
+  @Field(() => Boolean, { defaultValue: false })
   hasHomeVisit: boolean;
 
-  // Cambiado a ServiceProvider[]
-  @Field(() => [ServiceProvider], { nullable: true })
+  // Lista de ofertas de proveedores (Productos vinculados a este Service)
+  @Field(() => [ServiceProvider], { nullable: 'itemsAndList' })
   providers?: ServiceProvider[];
 
   @Field(() => Category, { nullable: true })
   category?: Category;
 
-  @Field()
-  createdAt: Date;
+  @Field({ nullable: true })
+  createdAt?: Date;
 }

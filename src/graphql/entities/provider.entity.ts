@@ -1,12 +1,12 @@
-import { ObjectType, Field, ID, InputType } from '@nestjs/graphql';
+import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
 import { User } from './user.entity';
+import { IsOptional, IsString } from 'class-validator';
 import { Service } from './service.entity';
-import { IsNotEmpty } from 'class-validator';
 
 @ObjectType()
 export class BankAccount {
-  @Field(() => ID)
-  id: string;
+  @Field(() => Int) // Coherente con Int @id @default(autoincrement())
+  id: number;
 
   @Field()
   bankName: string;
@@ -17,64 +17,84 @@ export class BankAccount {
   @Field()
   accountType: string;
 
-  @Field()
-  createdAt: Date;
+  @Field(() => Int)
+  providerId: number;
 
-  @Field()
-  updatedAt: Date;
+  @Field({ nullable: true })
+  createdAt?: Date;
+
+  @Field({ nullable: true })
+  updatedAt?: Date;
 }
 
 @ObjectType()
 export class Provider {
-  @Field(() => ID)
-  id: string;
+  @Field(() => Int) // Coherente con Int @id @default(autoincrement())
+  id: number;
 
   @Field()
   name: string;
 
-  @Field()
-  location: string;
+  @Field({ nullable: true })
+  location?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   logoUrl?: string;
 
-  @Field(() => BankAccount,{nullable:true})
+  @Field(() => Int)
+  userId: number;
+
+  @Field(() => User, { nullable: true })
+  user?: User;
+
+  @Field(() => BankAccount, { nullable: true })
   bank?: BankAccount;
 
-  @Field(() => [Service], {nullable:true})
+  @Field(() => [Service], { nullable: 'itemsAndList' })
   services?: Service[];
+
+  @Field({ nullable: true })
+  createdAt?: Date;
+
+  @Field({ nullable: true })
+  updatedAt?: Date;
 }
 
 @InputType()
 export class UpdateProviderInput {
-  @Field(() => ID)
-  providerId: string;
+  @Field(() => Int) // Prisma usa Int para buscar por ID
+  providerId: number;
 
-  @Field()
-  @IsNotEmpty()
-  name: string;
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  name?: string;
 
-  @Field()
-  @IsNotEmpty()
-  location: string;
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
 }
-
-// src/modules/bank/dto/update-bank.input.ts
 
 @InputType()
 export class UpdateBankInput {
-  @Field(() => ID)
-  bankId: string;
+  @Field(() => Int)
+  bankId: number;
 
-  @Field()
-  @IsNotEmpty()
-  bankName: string;
+  @Field({ nullable: true })
+  @IsOptional()
+  bankName?: string;
 
-  @Field()
-  @IsNotEmpty()
-  accountNumber: string;
+  @Field({ nullable: true })
+  @IsOptional()
+  accountNumber?: string;
 
-  @Field()
-  @IsNotEmpty()
-  accountType: string;
+  @Field({ nullable: true })
+  @IsOptional()
+  accountType?: string;
 }
