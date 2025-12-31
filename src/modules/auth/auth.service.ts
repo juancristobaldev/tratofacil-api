@@ -1,10 +1,13 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-
-import * as bcrypt from 'bcrypt';
-import { Role } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { User } from 'src/graphql/entities/user.entity';
+import { AuthType, LoginInput } from 'src/graphql/entities/auth.entity';
+import * as bcrypt from 'bcrypt';
+import { RegisterInput } from 'src/graphql/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -14,91 +17,121 @@ export class AuthService {
   ) {}
 
   /**
-   * LOGIN
+   * Registro de usuario coherente con wp_users y wp_usermeta
    */
-  async login(email: string, password: string) {
-    const user = await this.prisma.user.findFirst({
+  async register(data: RegisterInput): Promise<AuthType> {
+    // 1. Verificar si el email o username ya existen
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: data.email }, { username: data.username || data.email }],
+      },
+    });
+
+    if (existingUser) {
+      throw new ConflictException(
+        'El correo electrónico o nombre de usuario ya está registrado',
+      );
+    }
+
+    // 2. Encriptar contraseña
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    // 3. Crear usuario en wp_users y metadatos en wp_usermeta de forma atómica
+    const newUser = await this.prisma.user.create({
+      data: {
+        email: data.email,
+        password: hashedPassword,
+        // WordPress requiere user_login (username) y display_name
+        username: data.username || data.email.split('@')[0],
+        displayName:
+          data.displayName || data.username || data.email.split('@')[0],
+        role: data.role || 'CLIENT',
+        isEmailVerified: false,
+        // Coherencia con metadatos de WordPress
+        usermeta: {
+          create: data.phone
+            ? [{ key: 'billing_phone', value: data.phone }]
+            : [],
+        },
+      },
+      include: {
+        usermeta: true,
+      },
+    });
+
+    // 4. Generar Token y retornar AuthType
+    const token = this.jwtService.sign({
+      sub: newUser.id, // ID es Int, JWT lo serializa
+      email: newUser.email,
+      role: newUser.role,
+    });
+
+    return {
+      accessToken: token,
+      user: newUser,
+    };
+  }
+
+  /**
+   * Login coherente con el esquema de ID de tipo Int
+   */
+  async login(data: LoginInput): Promise<AuthType> {
+    const { email, password } = data;
+
+    // 1. Buscar usuario con sus metadatos
+    const user = await this.prisma.user.findUnique({
       where: { email },
+      include: { usermeta: true, provider: true },
     });
 
     if (!user) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) {
+    // 2. Validar contraseña
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    const payload = {
-      sub: user.id,
+    // 3. Generar JWT
+    const token = this.jwtService.sign({
+      sub: user.id, // ID numérico coherente con el schema
+      email: user.email,
       role: user.role,
-    };
-
-    const accessToken = this.jwtService.sign(payload);
+    });
 
     return {
-      accessToken,
-      user,
+      accessToken: token,
+      user: user,
     };
   }
 
   /**
-   * REGISTRO (opcional, pero útil)
+   * Validación de token para Guards
    */
-  /**
-   * REGISTRO (Adaptado a WordPress Schema)
-   */
-  async register(data: {
-    email: string;
-    password: string;
-    username?: string;
-    displayName?: string;
-    role?: Role;
-    phone?: string;
-  }): Promise<any> {
-    const hashedPassword = await bcrypt.hash(data.password, 10);
-
-    return await this.prisma.user.create({
-      data: {
-        email: data.email,
-        username: data.username || data.email.split('@')[0],
-        password: hashedPassword,
-        displayName:
-          data.displayName || data.username || data.email.split('@')[0],
-        role: data.role ?? Role.CLIENT,
-        createdAt: new Date(),
-
-        // CORRECCIÓN: 'create' debe recibir un ARREGLO []
-        usermeta: data.phone
-          ? {
-              create: [
-                {
-                  // id: Math.floor(Math.random() * 1000000), // Descomenta si sigue pidiendo ID manual
-                  key: 'billing_phone',
-                  value: data.phone,
-                },
-              ],
-            }
-          : undefined,
-      },
-      include: {
-        usermeta: true,
-      },
+  async validateUser(userId: number) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { usermeta: true, provider: true },
     });
   }
 
   /**
-   * USADO POR EL CONTEXT / GUARDS
+   * Obtener perfil del usuario actual (Me)
    */
-  async validateToken(token: string) {
-    try {
-      const decoded = this.jwtService.verify(token);
-      return this.prisma.user.findUnique({
-        where: { id: decoded.sub },
-      });
-    } catch {
-      return null;
-    }
+  async getMe(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        usermeta: true,
+        provider: {
+          include: { bank: true },
+        },
+      },
+    });
+
+    if (!user) throw new UnauthorizedException();
+    return user;
   }
 }

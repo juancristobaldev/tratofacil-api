@@ -1,6 +1,13 @@
-import { ObjectType, Field, Int, Float } from '@nestjs/graphql';
+import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
 import { Provider } from './provider.entity';
 import { Category } from './category.entity';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsString,
+} from 'class-validator';
 
 @ObjectType()
 export class ServiceProvider {
@@ -82,4 +89,61 @@ export class Service {
 
   @Field({ nullable: true })
   createdAt?: Date;
+}
+
+@InputType()
+export class CreateServiceInput {
+  @Field()
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @Field(() => Float)
+  @IsNumber()
+  price: number;
+
+  @Field()
+  @IsNotEmpty()
+  @IsString()
+  categoryId: string; // Se recibe como String y el Service hace el parseInt a Int
+
+  @Field()
+  @IsNotEmpty()
+  @IsString()
+  providerId: string; // ID del proveedor que crea la oferta (para PostMeta)
+
+  @Field(() => Boolean, { defaultValue: false })
+  @IsBoolean()
+  hasHomeVisit: boolean;
+}
+
+@InputType()
+export class UpdateServiceInput {
+  @Field(() => Int) // Para actualizar, el ID del Producto es obligatorio
+  id: number;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @IsNumber()
+  price?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  hasHomeVisit?: boolean;
 }

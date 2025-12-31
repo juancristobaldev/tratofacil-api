@@ -11,29 +11,24 @@ export class OrderService {
    * Nota: En tu esquema, el precio y la oferta real están en 'Product'.
    */
   async create(clientId: string, productId: string) {
-    // Convertimos IDs a Number ya que en el schema son Int
-    const clientIdInt = Number(clientId);
-    const productIdInt = Number(productId);
+    // Transformación explícita para coherencia con schema.prisma (Int)
+    const cId = parseInt(clientId, 10);
+    const pId = parseInt(productId, 10);
 
     const product = await this.prisma.product.findUnique({
-      where: { id: productIdInt },
+      where: { id: pId },
     });
 
-    if (!product) {
-      throw new NotFoundException('El producto o servicio no existe');
-    }
+    if (!product) throw new NotFoundException('Producto no encontrado');
 
     return this.prisma.order.create({
       data: {
-        clientId: clientIdInt,
-        productId: productIdInt,
-        total: product.price,
-        status: OrderStatus.PENDING,
-        // createdAt se llena automáticamente por el @default(now()) en el schema
+        clientId: cId,
+        productId: pId,
+        total: product.price, // Mantiene coherencia con el precio del post de WP
+        status: 'PENDING',
       },
-      include: {
-        product: true,
-      },
+      include: { product: true, client: true },
     });
   }
 

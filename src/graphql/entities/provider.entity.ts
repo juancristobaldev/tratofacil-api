@@ -3,9 +3,9 @@ import { User } from './user.entity';
 import { IsOptional, IsString } from 'class-validator';
 import { Service } from './service.entity';
 
-@ObjectType()
+ObjectType();
 export class BankAccount {
-  @Field(() => Int) // Coherente con Int @id @default(autoincrement())
+  @Field(() => Int)
   id: number;
 
   @Field()
@@ -20,11 +20,12 @@ export class BankAccount {
   @Field(() => Int)
   providerId: number;
 
+  // CAMBIO CRÍTICO: Usar '| null' en lugar de '?' para coincidir con Prisma
   @Field({ nullable: true })
-  createdAt?: Date;
+  createdAt: Date | null;
 
   @Field({ nullable: true })
-  updatedAt?: Date;
+  updatedAt: Date | null;
 }
 
 @ObjectType()

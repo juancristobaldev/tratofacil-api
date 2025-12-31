@@ -1,26 +1,41 @@
-import { Resolver, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Mutation, Args, Query, Context } from '@nestjs/graphql';
 import { AuthService } from '../../modules/auth/auth.service';
-import { AuthType } from 'src/graphql/entities/auth.entity';
-import { LoginInput, RegisterInput } from 'src/graphql/inputs/auth.input';
-import { User } from 'src/graphql/entities/user.entity';
-
-
-
+import { AuthType, LoginInput } from 'src/graphql/entities/auth.entity';
+import { RegisterInput, User } from 'src/graphql/entities/user.entity';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Resolver(() => AuthType)
 export class AuthResolver {
   constructor(private readonly authService: AuthService) {}
 
+  /**
+   * Mutación de Login: Retorna accessToken y User (con IDs como Int)
+   */
   @Mutation(() => AuthType)
   async login(@Args('loginInput') loginInput: LoginInput): Promise<AuthType> {
-    const { email, password } = loginInput;
-    // El servicio retorna { accessToken, user } que coincide con nuestra Auth entity
-    return await this.authService.login(email, password);
+    // Coherencia: El servicio ahora recibe el DTO completo
+    return await this.authService.login(loginInput);
   }
 
-  @Mutation(() => User)
-  async register(@Args('registerInput') registerInput: RegisterInput): Promise<User> {
-    // El servicio espera un objeto con { email, password, phone?, role? }
+  /**
+   * Mutación de Registro: Retorna AuthType para login automático
+   */
+  @Mutation(() => AuthType) // Cambiado de User a AuthType para coherencia con el Service
+  async register(
+    @Args('registerInput') registerInput: RegisterInput,
+  ): Promise<AuthType> {
+    // El servicio procesa el registro y genera el JWT automáticamente
     return await this.authService.register(registerInput);
+  }
+
+  /**
+   * Query Me: Para obtener el perfil del usuario autenticado
+   */
+  @Query(() => User)
+  @UseGuards(JwtAuthGuard)
+  async me(@Context() context: any): Promise<User> {
+    // context.req.user.sub contiene el ID numérico extraído del JWT
+    return await this.authService.getMe(context.req.user.sub);
   }
 }

@@ -54,16 +54,8 @@ export class UserService {
   }
 
   // Renombrado a findOne para ser consistente con el Resolver
-  async findOne(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-    });
-    
-    if (!user) {
-      throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
-    }
-    
-    return user;
+  async findOne(id: number) {
+    return this.prisma.user.findUnique({ where: { id: id } }); // CORRECTO
   }
 
   async findByEmail(email: string) {
@@ -72,7 +64,7 @@ export class UserService {
     });
   }
 
-  async changeRole(userId: string, role: Role) {
+  async changeRole(userId: number, role: Role) {
     // Reutilizamos findOne para validar existencia
     await this.findOne(userId);
 
@@ -83,7 +75,7 @@ export class UserService {
   }
 
   // Método para eliminar, necesario para la Mutation removeUser
-  async remove(id: string) {
+  async remove(id: number) {
     await this.findOne(id); // Valida que exista antes de borrar
 
     return this.prisma.user.delete({

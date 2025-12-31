@@ -1,5 +1,6 @@
 import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
 import { Role } from '@prisma/client';
+import { IsEmail, IsOptional, IsString, IsInt } from 'class-validator';
 
 @ObjectType()
 export class UserMeta {
@@ -30,20 +31,22 @@ export class User {
   @Field()
   displayName: string;
 
+  // Cambiamos 'role?: Role' por 'role: Role | null'
+  // Esto permite que el valor null de la DB sea aceptado por TypeScript
   @Field(() => Role, { nullable: true })
-  role?: Role;
+  role: Role | null;
 
   @Field(() => Boolean, { nullable: true })
-  isEmailVerified?: boolean;
+  isEmailVerified: boolean | null;
 
   @Field(() => [UserMeta], { nullable: 'itemsAndList' })
   usermeta?: UserMeta[];
 
   @Field({ nullable: true })
-  createdAt?: Date;
+  createdAt: Date;
 
   @Field({ nullable: true })
-  updatedAt?: Date;
+  updatedAt: Date | null;
 }
 
 @InputType()
@@ -69,12 +72,22 @@ export class RegisterInput {
 
 @InputType()
 export class UpdateUserInput {
-  @Field({ nullable: true })
-  displayName?: string;
+  @Field(() => Int)
+  @IsInt()
+  id: number; // Coincide con wp_users.ID (Int)
 
   @Field({ nullable: true })
+  @IsOptional()
+  @IsEmail()
   email?: string;
 
   @Field({ nullable: true })
-  password?: string;
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  phone?: string; // Se procesará hacia wp_usermeta
 }

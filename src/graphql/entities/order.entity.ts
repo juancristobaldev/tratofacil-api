@@ -77,8 +77,8 @@ export class Order {
   @Field(() => OrderStatus)
   status: OrderStatus;
 
-  @Field(() => Float, { nullable: true })
-  total?: number;
+  @Field(() => Float)
+  total: number;
 
   @Field({ nullable: true })
   createdAt?: Date;
