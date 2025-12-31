@@ -1,56 +1,80 @@
-import { ObjectType, Field, ID, InputType } from '@nestjs/graphql';
-import { IsEmail, IsOptional } from 'class-validator';
-import { Provider } from './provider.entity';
+import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
+import { Role } from '@prisma/client';
+
+@ObjectType()
+export class UserMeta {
+  @Field(() => Int)
+  id: number;
+
+  @Field(() => Int)
+  userId: number;
+
+  @Field()
+  key: string;
+
+  @Field()
+  value: string;
+}
 
 @ObjectType()
 export class User {
-  @Field(() => ID)
-  id: string;
+  @Field(() => Int)
+  id: number;
+
+  @Field()
+  username: string;
 
   @Field()
   email: string;
 
-  // Debes indicar explícitamente el tipo para campos opcionales
-  @Field(() => String, { nullable: true })
-  phone?: string | null;
-
   @Field()
-  role: string;
+  displayName: string;
 
-  @Field()
-  isEmailVerified: boolean;
+  @Field(() => Role, { nullable: true })
+  role?: Role;
 
-  // Para Date, siempre usar (() => Date)
-  @Field(() => Date)
-  createdAt: Date;
+  @Field(() => Boolean, { nullable: true })
+  isEmailVerified?: boolean;
 
-  @Field(() => Provider,{ nullable: true })
+  @Field(() => [UserMeta], { nullable: 'itemsAndList' })
+  usermeta?: UserMeta[];
 
-  provider?: Provider;
+  @Field({ nullable: true })
+  createdAt?: Date;
+
+  @Field({ nullable: true })
+  updatedAt?: Date;
 }
 
+@InputType()
+export class RegisterInput {
+  @Field()
+  email: string;
 
+  @Field()
+  password: string;
+
+  @Field({ nullable: true })
+  username?: string;
+
+  @Field({ nullable: true })
+  displayName?: string;
+
+  @Field(() => Role, { nullable: true, defaultValue: Role.CLIENT })
+  role?: Role;
+
+  @Field({ nullable: true })
+  phone?: string; // Este campo se guardará en wp_usermeta como 'billing_phone'
+}
 
 @InputType()
 export class UpdateUserInput {
-  @Field(() => ID)
-  userId: string;
+  @Field({ nullable: true })
+  displayName?: string;
 
   @Field({ nullable: true })
-  @IsOptional()
-  @IsEmail()
   email?: string;
 
   @Field({ nullable: true })
-  @IsOptional()
-  phone?: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  firstName?: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  lastName?: string;
-  
+  password?: string;
 }

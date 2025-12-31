@@ -38,165 +38,168 @@ enum PaymentStatus {
 /// MODELS
 ////////////////////
 
-/// Usuarios
+/// Usuarios (wp_users)
 model User {
-  id              Int       @id @map("ID") @default(autoincrement())
-  username        String    @map("user_login") @unique
-  email           String    @map("user_email") @unique
-  password        String    @map("user_pass")
-  displayName     String    @map("display_name")
-  role            Role      @default(CLIENT)
-  isEmailVerified Boolean   @default(false)
+  id              Int      @id @default(autoincrement()) @map("ID")
+  username        String   @unique @map("user_login")
+  email           String   @unique @map("user_email")
+  password        String   @map("user_pass")
+  displayName     String   @map("display_name")
+  role            Role?    @default(CLIENT)
+  isEmailVerified Boolean? @default(false)
 
-  orders          Order[]   @relation("ClientOrders")
-  provider        Provider?
+  orders   Order[]   @relation("ClientOrders")
+  provider Provider?
 
-  createdAt       DateTime  @map("user_registered")
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime  @default(now()) @map("user_registered")
+  updatedAt DateTime? @updatedAt
 
-  usermeta        UserMeta[]
+  usermeta UserMeta[]
+
+  @@map("wp_users")
 }
 
-/// Metadatos de usuarios
+/// Metadatos de usuarios (wp_usermeta)
 model UserMeta {
-  id       Int    @id @map("umeta_id") @default(autoincrement())
-  userId   Int
-  key      String @map("meta_key")
-  value    String @map("meta_value")
+  id     Int    @id @default(autoincrement()) @map("umeta_id")
+  userId Int    @map("user_id")
+  key    String @map("meta_key")
+  value  String @map("meta_value")
 
-  user     User   @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("wp_usermeta")
 }
 
-/// Proveedores opcionales
+/// Proveedores (APP)
 model Provider {
-  id        Int       @id @default(autoincrement())
-  name      String
-  location  String?
-  logoUrl   String?
+  id       Int     @id @default(autoincrement())
+  name     String
+  location String?
+  logoUrl  String?
 
-  userId    Int       @unique
-  user      User      @relation(fields: [userId], references: [id])
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
 
-  bank      BankAccount?
-  services  Service[]
+  bank     BankAccount?
+  services Service[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime? @default(now())
+  updatedAt DateTime? @updatedAt
 }
 
-/// Cuenta bancaria del proveedor
+/// Cuenta bancaria del proveedor (APP)
 model BankAccount {
-  id            Int      @id @default(autoincrement())
+  id            Int    @id @default(autoincrement())
   bankName      String
   accountNumber String
   accountType   String
 
-  providerId    Int      @unique
-  provider      Provider @relation(fields: [providerId], references: [id])
+  providerId Int      @unique
+  provider   Provider @relation(fields: [providerId], references: [id])
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime? @default(now())
+  updatedAt DateTime? @updatedAt
 }
 
-/// Categorías principales de WooCommerce
+/// Categorías principales (wp_terms)
 model Category {
-  id        Int        @id @map("term_id")
-  name      String     @map("name")
-  slug      String     @map("slug") @unique
-  description String?  @map("description")
-  imageUrl  String?
+  id          Int     @id @default(autoincrement()) @map("term_id")
+  name        String  @map("name")
+  slug        String  @unique @map("slug")
+  description String?
 
-  /// Subcategorías (servicios)
-  services  Service[]  @relation("CategoryServices", fields: [id], references: [categoryId])
+  services Service[]
 
-  parentId  Int?       @map("parent")
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  parentId Int? @map("parent")
 }
 
-/// Subcategorías de la categoría → mapeadas como servicios
+/// Subcategorías → servicios (wp_terms mapeados como servicios)
 model Service {
-  id           Int       @id @map("term_id")
-  name         String    @map("name")
-  slug         String    @map("slug") @unique
-  description  String?   @map("description")
+  id          Int     @id @default(autoincrement()) @map("term_id")
+  name        String  @map("name")
+  slug        String  @unique @map("slug")
+  description String?
 
-  categoryId   Int
-  category     Category  @relation("CategoryServices", fields: [categoryId], references: [id])
+  categoryId Int      @map("parent")
+  category   Category @relation(fields: [categoryId], references: [id])
 
-  products     Product[]
+  providerId Int?
+  provider   Provider? @relation(fields: [providerId], references: [id])
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  products Product[]
 }
 
-/// Productos → productos de WooCommerce
+/// Productos (wp_posts)
 model Product {
-  id          Int       @id @map("ID")
-  name        String    @map("post_title")
-  description String?   @map("post_content")
+  id          Int     @id @default(autoincrement()) @map("ID")
+  name        String  @map("post_title")
+  description String? @map("post_content")
   price       Float?
   netAmount   Float?
   commission  Float?
 
-  serviceId   Int
-  service     Service   @relation(fields: [serviceId], references: [id])
+  serviceId Int?
+  service   Service? @relation(fields: [serviceId], references: [id])
 
-  orders      Order[]
+  orders Order[]
 
-  createdAt   DateTime  @map("post_date")
-  updatedAt   DateTime  @map("post_modified")
+  createdAt DateTime @default(now()) @map("post_date")
+  updatedAt DateTime @updatedAt @map("post_modified")
 
-  postmeta    PostMeta[]
+  postmeta PostMeta[]
+
+  @@map("wp_posts")
 }
 
-/// Metadatos de productos
+/// Metadatos de productos (wp_postmeta)
 model PostMeta {
-  id       Int     @id @map("meta_id") @default(autoincrement())
-  postId   Int
-  key      String  @map("meta_key")
-  value    String  @map("meta_value")
+  id     Int    @id @default(autoincrement()) @map("meta_id")
+  postId Int    @map("post_id")
+  key    String @map("meta_key")
+  value  String @map("meta_value")
 
-  product  Product @relation(fields: [postId], references: [id])
+  product Product @relation(fields: [postId], references: [id])
+
+  @@map("wp_postmeta")
 }
 
-/// Pedidos
+/// Pedidos (APP)
 model Order {
-  id          Int         @id @default(autoincrement())
-  clientId    Int
-  client      User        @relation("ClientOrders", fields: [clientId], references: [id])
+  id       Int  @id @default(autoincrement())
+  clientId Int
+  client   User @relation("ClientOrders", fields: [clientId], references: [id])
 
-  productId   Int
-  product     Product     @relation(fields: [productId], references: [id])
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
 
-  status      OrderStatus @default(PENDING)
-  total       Float?
+  status OrderStatus @default(PENDING)
+  total  Float?
 
-  payment     Payment?
+  payment Payment?
 
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt DateTime? @default(now())
+  updatedAt DateTime? @updatedAt
 }
 
-/// Pagos
+/// Pagos (APP)
 model Payment {
-  id        Int           @id @default(autoincrement())
-  orderId   Int           @unique
-  order     Order         @relation(fields: [orderId], references: [id])
+  id       Int             @id @default(autoincrement())
+  orderId  Int             @unique
+  order    Order           @relation(fields: [orderId], references: [id])
+  amount   Float
+  provider PaymentProvider
+  status   PaymentStatus   @default(INITIATED)
 
-  amount    Float
-  provider  PaymentProvider
-  status    PaymentStatus
-
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt DateTime? @default(now())
+  updatedAt DateTime? @updatedAt
 }
 
-/// Verificación de correo (opcional)
+/// Verificación de correo (APP)
 model EmailVerification {
   id        Int       @id @default(autoincrement())
   email     String    @unique
   code      String
   expiresAt DateTime
-  createdAt DateTime  @default(now())
+  createdAt DateTime? @default(now())
 }

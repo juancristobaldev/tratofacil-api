@@ -17,7 +17,7 @@ export class AuthService {
    * LOGIN
    */
   async login(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       where: { email },
     });
 
@@ -46,20 +46,44 @@ export class AuthService {
   /**
    * REGISTRO (opcional, pero útil)
    */
+  /**
+   * REGISTRO (Adaptado a WordPress Schema)
+   */
   async register(data: {
     email: string;
     password: string;
+    username?: string;
+    displayName?: string;
     role?: Role;
     phone?: string;
-  }) :Promise <User>{
+  }): Promise<any> {
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
     return await this.prisma.user.create({
       data: {
         email: data.email,
+        username: data.username || data.email.split('@')[0],
         password: hashedPassword,
+        displayName:
+          data.displayName || data.username || data.email.split('@')[0],
         role: data.role ?? Role.CLIENT,
-        phone: data.phone,
+        createdAt: new Date(),
+
+        // CORRECCIÓN: 'create' debe recibir un ARREGLO []
+        usermeta: data.phone
+          ? {
+              create: [
+                {
+                  // id: Math.floor(Math.random() * 1000000), // Descomenta si sigue pidiendo ID manual
+                  key: 'billing_phone',
+                  value: data.phone,
+                },
+              ],
+            }
+          : undefined,
+      },
+      include: {
+        usermeta: true,
       },
     });
   }

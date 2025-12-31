@@ -5,176 +5,174 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class ServicesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // -------------------- CREAR SERVICIO --------------------
+  // -------------------- CREAR OFERTA (PRODUCTO) --------------------
   async create(data: {
     name: string;
     description: string;
     price: number;
-    categoryId: string; // este puede ser el slug o nombre
+    categoryId: string; // Slug o ID
     providerId: string;
     hasHomeVisit: boolean;
   }) {
     const commission = data.price * 0.1;
     const netAmount = data.price - commission;
-  
-    return this.prisma.service.create({
+
+    // 1. Buscamos la subcategoría (Modelo Service en Prisma/WordPress)
+    let serviceCategory = await this.prisma.service.findFirst({
+      where: { slug: data.categoryId },
+    });
+
+    if (!serviceCategory && !isNaN(Number(data.categoryId))) {
+      serviceCategory = await this.prisma.service.findUnique({
+        where: { id: Number(data.categoryId) },
+      });
+    }
+
+    if (!serviceCategory) {
+      throw new NotFoundException('La categoría de servicio no existe.');
+    }
+
+    // 2. Creamos el PRODUCTO
+    // Eliminamos IDs manuales y fechas ya que el nuevo schema tiene @default
+    return this.prisma.product.create({
       data: {
         name: data.name,
         description: data.description,
         price: data.price,
         commission,
         netAmount,
-        hasHomeVisit: data.hasHomeVisit,
-        provider: { connect: { id: data.providerId } },
-        category: {
-          connectOrCreate: {
-            where: { slug: data.categoryId }, // o name: data.categoryId si usas nombre
-            create: { name: data.categoryId, slug: data.categoryId },
-          },
+        // Usamos la relación 'service' mediante 'connect'
+        // Prisma prefiere esto sobre 'serviceId' cuando usas ProductCreateInput
+        service: {
+          connect: { id: serviceCategory.id },
+        },
+        postmeta: {
+          create: [
+            {
+              key: 'provider_id',
+              value: data.providerId,
+            },
+            {
+              key: 'has_home_visit',
+              value: String(data.hasHomeVisit),
+            },
+          ],
         },
       },
       include: {
-        category: true,
-        provider: true,
+        service: true,
+        postmeta: true,
       },
     });
   }
-  
-  // -------------------- ACTUALIZAR SERVICIO --------------------
+
+  // -------------------- ACTUALIZAR PRODUCTO --------------------
   async update(
     id: string,
     data: {
-      name: string;
-      description: string;
-      price: number;
-
-      hasHomeVisit: boolean;
+      name?: string;
+      description?: string;
+      price?: number;
+      hasHomeVisit?: boolean;
     },
   ) {
-    const existing = await this.findOne(id); // Verifica si existe
-    if(!existing) return null
-    const commission = data.price * 0.1;
-    const netAmount = data.price - commission;
+    const productId = Number(id);
+    const existing = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
 
-    return this.prisma.service.update({
-      where: { id },
-      data: {
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        commission,
-        netAmount,
-  
-        hasHomeVisit: data.hasHomeVisit,
-      },
+    if (!existing) throw new NotFoundException('Producto no encontrado');
+
+    const updateData: any = {
+      name: data.name,
+      description: data.description,
+    };
+
+    if (data.price !== undefined) {
+      updateData.price = data.price;
+      updateData.commission = data.price * 0.1;
+      updateData.netAmount = data.price - updateData.commission;
+    }
+
+    // Si hasHomeVisit cambia, actualizamos el meta correspondiente
+    if (data.hasHomeVisit !== undefined) {
+      await this.prisma.postMeta.updateMany({
+        where: { postId: productId, key: 'has_home_visit' },
+        data: { value: String(data.hasHomeVisit) },
+      });
+    }
+
+    return this.prisma.product.update({
+      where: { id: productId },
+      data: updateData,
       include: {
-        category: true,
-        provider: true,
+        service: true,
+        postmeta: true,
       },
     });
   }
 
-  // -------------------- ELIMINAR SERVICIO --------------------
+  // -------------------- ELIMINAR --------------------
   async remove(id: string) {
-    await this.findOne(id); // Verifica existencia
+    const productId = Number(id);
+    const existing = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+    if (!existing) throw new NotFoundException('Producto no encontrado');
 
-    return this.prisma.service.delete({
-      where: { id },
-      include: {
-        category: true,
-        provider: true,
-      },
+    // Nota: Dependiendo de tu MySQL, podrías necesitar borrar postmeta primero
+    // si no tienes ON DELETE CASCADE.
+    await this.prisma.postMeta.deleteMany({ where: { postId: productId } });
+
+    return this.prisma.product.delete({
+      where: { id: productId },
     });
   }
 
   // -------------------- CONSULTAS --------------------
   async findAll() {
-    return this.prisma.service.findMany({
-      include: { category: true, provider: true },
+    return this.prisma.product.findMany({
+      include: {
+        service: true,
+        postmeta: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async findOne(id: string) {
-    const service = await this.prisma.service.findUnique({
-      where: { id },
-      include: { category: true, provider: true },
+    const product = await this.prisma.product.findUnique({
+      where: { id: Number(id) },
+      include: { service: true, postmeta: true },
     });
-    if (!service) throw new NotFoundException('Servicio no encontrado');
-    return service;
+    if (!product) throw new NotFoundException('Producto no encontrado');
+    return product;
   }
 
-  async findByCategory(categoryId: string) {
-    const services = await this.prisma.service.findMany({
+  async findByCategory(categorySlug: string) {
+    const products = await this.prisma.product.findMany({
       where: {
-        OR: [
-          { category: { id: categoryId } },
-          { category: { name: categoryId } },
-        ],
+        service: { slug: categorySlug },
       },
       include: {
-        category: true,
-        provider: true, // aquí cada provider tiene info, pero también necesitamos precio
+        service: true,
+        postmeta: true,
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     });
-  
-    // Agrupar por nombre de servicio
-    const grouped = services.reduce<Record<string, any>>((acc, service) => {
-      if (!acc[service.name]) {
-        acc[service.name] = {
-          id: service.id,
-          name: service.name,
-          description: service.description,
-          category: service.category,
-          providers: service.provider.map((p) => ({
-            id: p.id,
-            name: p.name,
-            location: p.location,
-            price: service.price, // precio de ese proveedor para este servicio
-          })),
-        };
-      } else {
-        // agregar proveedores sin duplicar
-        service.provider.forEach((p) => {
-          if (!acc[service.name].providers.find((prov: any) => prov.id === p.id)) {
-            acc[service.name].providers.push({
-              id: p.id,
-              name: p.name,
-              location: p.location,
-              price: service.price,
-            });
-          }
-        });
-      }
-      return acc;
-    }, {});
-  
-    return Object.values(grouped);
-  }
 
-  async findServiceDetail(
-    serviceId: string,
-    providerId: string,
-  ) {
-    return this.prisma.service.findFirst({
-      where: {
-        id: serviceId,
- 
-        provider: {
-          some: {
-            id: providerId,
-          },
-        },
-      },
-      include: {
-        provider: {
-          where: {
-            id: providerId,
-          },
-        },
-      },
+    return products.map((product) => {
+      const providerMeta = product.postmeta.find(
+        (m) => m.key === 'provider_id',
+      );
+      return {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        category: product.service,
+        providerId: providerMeta ? providerMeta.value : null,
+      };
     });
   }
-
 }

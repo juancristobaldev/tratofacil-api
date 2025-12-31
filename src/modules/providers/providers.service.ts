@@ -1,12 +1,13 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
-import { Provider } from 'src/graphql/entities/provider.entity';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-
 
 @Injectable()
 export class ProviderService {
   constructor(private readonly prisma: PrismaService) {}
-
 
   /**
    * Crear proveedor (1–1 con User)
@@ -19,8 +20,11 @@ export class ProviderService {
       logoUrl?: string;
     },
   ) {
+    // Convertir userId a Number ya que en el schema es Int
+    const userIdInt = Number(userId);
+
     const exists = await this.prisma.provider.findUnique({
-      where: { userId },
+      where: { userId: userIdInt },
     });
 
     if (exists) {
@@ -30,7 +34,8 @@ export class ProviderService {
     return this.prisma.provider.create({
       data: {
         ...data,
-        userId,
+        userId: userIdInt,
+        // createdAt se llena automáticamente por @default(now())
       },
     });
   }
@@ -40,9 +45,10 @@ export class ProviderService {
    */
   async findByUser(userId: string) {
     const provider = await this.prisma.provider.findUnique({
-      where: { userId },
+      where: { userId: Number(userId) },
       include: {
-        services: true,
+        services: true, // Relación con subcategorías de WordPress
+        user: true,
       },
     });
 
@@ -58,9 +64,10 @@ export class ProviderService {
    */
   async findById(id: string) {
     const provider = await this.prisma.provider.findUnique({
-      where: { id },
+      where: { id: Number(id) },
       include: {
         services: true,
+        user: true,
       },
     });
 
