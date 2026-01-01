@@ -1,12 +1,8 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
 import { User } from './user.entity';
-// --------------------------------------------------------
-// CORRECCIÓN: Importar desde el archivo enum, NO de Prisma
-import { OrderStatus } from '../enums/order-status.enum';
-// --------------------------------------------------------
+import { OrderStatus } from '../enums/order-status.enum'; // Usar Enum local registrado
 import { Service } from './service.entity';
-
-// ... (Resto de las clases PostMeta y Product igual que antes)
+import { IsInt, IsNotEmpty } from 'class-validator';
 
 @ObjectType()
 export class PostMeta {
@@ -76,7 +72,7 @@ export class Order {
   @Field(() => Product, { nullable: true })
   product?: Product;
 
-  @Field(() => OrderStatus) // Ahora usa el enum registrado
+  @Field(() => OrderStatus)
   status: OrderStatus;
 
   @Field(() => Float)
@@ -91,6 +87,9 @@ export class Order {
 
 @InputType()
 export class CreateOrderInput {
-  @Field(() => String)
-  productId: string;
+  // ALINEACIÓN: Int (Era String)
+  @Field(() => Int)
+  @IsNotEmpty()
+  @IsInt()
+  productId: number;
 }

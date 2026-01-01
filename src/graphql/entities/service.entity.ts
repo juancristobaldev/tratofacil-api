@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsBoolean,
   IsString,
+  IsInt, // <--- Importar IsInt
 } from 'class-validator';
 
 @ObjectType()
@@ -106,15 +107,17 @@ export class CreateServiceInput {
   @IsNumber()
   price: number;
 
-  @Field(() => String)
+  // ALINEACIÓN: Int (Era String)
+  @Field(() => Int)
   @IsNotEmpty()
-  @IsString()
-  categoryId: string;
+  @IsInt()
+  categoryId: number;
 
-  @Field(() => String)
+  // ALINEACIÓN: Int (Era String)
+  @Field(() => Int)
   @IsNotEmpty()
-  @IsString()
-  providerId: string;
+  @IsInt()
+  providerId: number;
 
   @Field(() => Boolean, { defaultValue: false })
   @IsBoolean()
@@ -124,6 +127,7 @@ export class CreateServiceInput {
 @InputType()
 export class UpdateServiceInput {
   @Field(() => Int)
+  @IsInt()
   id: number;
 
   @Field(() => String, { nullable: true })

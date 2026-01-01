@@ -1,6 +1,9 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
-import { PaymentProvider, PaymentStatus } from '@prisma/client';
+// RECOMENDADO: Usar enums locales registrados con registerEnumType en sus archivos
+
 import { Order } from './order.entity';
+import { IsEnum, IsInt, IsNumber } from 'class-validator';
+import { PaymentProvider, PaymentStatus } from '@prisma/client';
 
 @ObjectType()
 export class Payment {
@@ -31,12 +34,16 @@ export class Payment {
 
 @InputType()
 export class CreatePaymentInput {
-  @Field(() => String)
-  orderId: string;
+  // ALINEACIÓN: Int (Era String)
+  @Field(() => Int)
+  @IsInt()
+  orderId: number;
 
   @Field(() => Float)
+  @IsNumber()
   amount: number;
 
   @Field(() => PaymentProvider)
+  @IsEnum(PaymentProvider)
   provider: PaymentProvider;
 }
