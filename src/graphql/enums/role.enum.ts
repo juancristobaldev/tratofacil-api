@@ -1,11 +1,8 @@
 import { registerEnumType } from '@nestjs/graphql';
-
-export enum Role {
-  CLIENT = 'CLIENT',
-  PROVIDER = 'PROVIDER',
-  ADMIN = 'ADMIN',
-}
+import { Role } from '@prisma/client';
 
 registerEnumType(Role, {
   name: 'Role',
 });
+
+export { Role };

@@ -3,43 +3,42 @@ import { User } from './user.entity';
 import { IsOptional, IsString } from 'class-validator';
 import { Service } from './service.entity';
 
-ObjectType();
+@ObjectType()
 export class BankAccount {
   @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   bankName: string;
 
-  @Field()
+  @Field(() => String)
   accountNumber: string;
 
-  @Field()
+  @Field(() => String)
   accountType: string;
 
   @Field(() => Int)
   providerId: number;
 
-  // CAMBIO CRÍTICO: Usar '| null' en lugar de '?' para coincidir con Prisma
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   createdAt: Date | null;
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   updatedAt: Date | null;
 }
 
 @ObjectType()
 export class Provider {
-  @Field(() => Int) // Coherente con Int @id @default(autoincrement())
+  @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   name: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   location?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   logoUrl?: string;
 
   @Field(() => Int)
@@ -54,29 +53,29 @@ export class Provider {
   @Field(() => [Service], { nullable: 'itemsAndList' })
   services?: Service[];
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   createdAt?: Date;
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   updatedAt?: Date;
 }
 
 @InputType()
 export class UpdateProviderInput {
-  @Field(() => Int) // Prisma usa Int para buscar por ID
+  @Field(() => Int)
   providerId: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   name?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   location?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   logoUrl?: string;
@@ -87,15 +86,15 @@ export class UpdateBankInput {
   @Field(() => Int)
   bankId: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   bankName?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   accountNumber?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   accountType?: string;
 }

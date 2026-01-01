@@ -7,7 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AuthType, LoginInput } from 'src/graphql/entities/auth.entity';
 import * as bcrypt from 'bcrypt';
-import { RegisterInput } from 'src/graphql/entities/user.entity';
+import { RegisterInput, User } from 'src/graphql/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -15,7 +15,33 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
   ) {}
+  async validateToken(token: string): Promise<User> {
+    try {
+      // 1. Verificar firma y expiración usando la configuración global del módulo JWT
+      const payload = this.jwtService.verify(token);
 
+      // 2. Buscar usuario usando el 'sub' (ID) del payload
+      // Mantenemos la coherencia de incluir usermeta y provider
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        include: {
+          usermeta: true,
+          provider: true,
+        },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException(
+          'El usuario asociado al token no existe',
+        );
+      }
+
+      return user;
+    } catch (error) {
+      // Captura errores de expiración (TokenExpiredError) o firma inválida (JsonWebTokenError)
+      throw new UnauthorizedException('Token inválido o expirado');
+    }
+  }
   /**
    * Registro de usuario coherente con wp_users y wp_usermeta
    */

@@ -1,7 +1,12 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
 import { User } from './user.entity';
-import { OrderStatus } from '@prisma/client'; // Usar el enum directo de Prisma
+// --------------------------------------------------------
+// CORRECCIÓN: Importar desde el archivo enum, NO de Prisma
+import { OrderStatus } from '../enums/order-status.enum';
+// --------------------------------------------------------
 import { Service } from './service.entity';
+
+// ... (Resto de las clases PostMeta y Product igual que antes)
 
 @ObjectType()
 export class PostMeta {
@@ -11,10 +16,10 @@ export class PostMeta {
   @Field(() => Int)
   postId: number;
 
-  @Field()
+  @Field(() => String)
   key: string;
 
-  @Field()
+  @Field(() => String)
   value: string;
 }
 
@@ -23,10 +28,10 @@ export class Product {
   @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   name: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   description?: string;
 
   @Field(() => Float, { nullable: true })
@@ -38,22 +43,19 @@ export class Product {
   @Field(() => Float, { nullable: true })
   commission?: number;
 
-  // ID de la relación (útil para optimizar queries)
   @Field(() => Int, { nullable: true })
   serviceId?: number;
 
-  // Relación con el Servicio (Subcategoría de WordPress)
   @Field(() => Service, { nullable: true })
   service?: Service;
 
-  // Relación con metadatos (wp_postmeta)
   @Field(() => [PostMeta], { nullable: 'itemsAndList' })
   postmeta?: PostMeta[];
 
-  @Field()
+  @Field(() => Date)
   createdAt: Date;
 
-  @Field()
+  @Field(() => Date)
   updatedAt: Date;
 }
 
@@ -74,21 +76,21 @@ export class Order {
   @Field(() => Product, { nullable: true })
   product?: Product;
 
-  @Field(() => OrderStatus)
+  @Field(() => OrderStatus) // Ahora usa el enum registrado
   status: OrderStatus;
 
   @Field(() => Float)
   total: number;
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   createdAt?: Date;
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   updatedAt?: Date;
 }
 
 @InputType()
 export class CreateOrderInput {
-  @Field()
-  productId: string; // El ID del Producto/Oferta que se va a comprar
+  @Field(() => String)
+  productId: string;
 }

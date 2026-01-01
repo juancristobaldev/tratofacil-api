@@ -11,10 +11,10 @@ import {
 
 @ObjectType()
 export class ServiceProvider {
-  @Field(() => Int) // ID del Product (wp_posts)
+  @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   name: string;
 
   @Field(() => Float, { nullable: true })
@@ -26,8 +26,8 @@ export class ServiceProvider {
   @Field(() => Float, { nullable: true })
   netAmount: number;
 
-  @Field({ nullable: true })
-  location?: string; // Extraído del Provider vinculado
+  @Field(() => String, { nullable: true })
+  location?: string;
 }
 
 @ObjectType()
@@ -35,10 +35,10 @@ export class ServiceDetail {
   @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   name: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   description?: string;
 
   @Field(() => Float, { nullable: true })
@@ -51,7 +51,7 @@ export class ServiceDetail {
   netAmount: number;
 
   @Field(() => Boolean)
-  hasHomeVisit: boolean; // Se resuelve desde PostMeta 'has_home_visit'
+  hasHomeVisit: boolean;
 
   @Field(() => Provider)
   provider: Provider;
@@ -59,17 +59,17 @@ export class ServiceDetail {
 
 @ObjectType()
 export class Service {
-  @Field(() => Int) // term_id en wp_terms
+  @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   name: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   description?: string;
 
   @Field(() => Float, { nullable: true })
-  price?: number; // Precio base o promedio si se desea
+  price?: number;
 
   @Field(() => Float, { nullable: true })
   commission?: number;
@@ -80,25 +80,24 @@ export class Service {
   @Field(() => Boolean, { defaultValue: false })
   hasHomeVisit: boolean;
 
-  // Lista de ofertas de proveedores (Productos vinculados a este Service)
   @Field(() => [ServiceProvider], { nullable: 'itemsAndList' })
   providers?: ServiceProvider[];
 
   @Field(() => Category, { nullable: true })
   category?: Category;
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   createdAt?: Date;
 }
 
 @InputType()
 export class CreateServiceInput {
-  @Field()
+  @Field(() => String)
   @IsNotEmpty()
   @IsString()
   name: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   description?: string;
@@ -107,15 +106,15 @@ export class CreateServiceInput {
   @IsNumber()
   price: number;
 
-  @Field()
+  @Field(() => String)
   @IsNotEmpty()
   @IsString()
-  categoryId: string; // Se recibe como String y el Service hace el parseInt a Int
+  categoryId: string;
 
-  @Field()
+  @Field(() => String)
   @IsNotEmpty()
   @IsString()
-  providerId: string; // ID del proveedor que crea la oferta (para PostMeta)
+  providerId: string;
 
   @Field(() => Boolean, { defaultValue: false })
   @IsBoolean()
@@ -124,15 +123,15 @@ export class CreateServiceInput {
 
 @InputType()
 export class UpdateServiceInput {
-  @Field(() => Int) // Para actualizar, el ID del Producto es obligatorio
+  @Field(() => Int)
   id: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   name?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   description?: string;

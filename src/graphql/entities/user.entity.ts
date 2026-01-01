@@ -1,5 +1,10 @@
 import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
-import { Role } from '@prisma/client';
+// -------------------------------------------------------------------------
+// ERROR AQUÍ: No importes de '@prisma/client'.
+// SOLUCIÓN: Importa desde tu archivo local donde hiciste el registerEnumType
+// -------------------------------------------------------------------------
+import { Role } from '../enums/role.enum';
+// -------------------------------------------------------------------------
 import { IsEmail, IsOptional, IsString, IsInt } from 'class-validator';
 
 @ObjectType()
@@ -10,10 +15,10 @@ export class UserMeta {
   @Field(() => Int)
   userId: number;
 
-  @Field()
+  @Field(() => String)
   key: string;
 
-  @Field()
+  @Field(() => String)
   value: string;
 }
 
@@ -22,17 +27,16 @@ export class User {
   @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   username: string;
 
-  @Field()
+  @Field(() => String)
   email: string;
 
-  @Field()
+  @Field(() => String)
   displayName: string;
 
-  // Cambiamos 'role?: Role' por 'role: Role | null'
-  // Esto permite que el valor null de la DB sea aceptado por TypeScript
+  // Ahora NestJS sabe que este 'Role' es el Enum registrado
   @Field(() => Role, { nullable: true })
   role: Role | null;
 
@@ -42,52 +46,53 @@ export class User {
   @Field(() => [UserMeta], { nullable: 'itemsAndList' })
   usermeta?: UserMeta[];
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   createdAt: Date;
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   updatedAt: Date | null;
 }
 
 @InputType()
 export class RegisterInput {
-  @Field()
+  @Field(() => String)
   email: string;
 
-  @Field()
+  @Field(() => String)
   password: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   username?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   displayName?: string;
 
+  // Aquí también usa el Role importado correctamente
   @Field(() => Role, { nullable: true, defaultValue: Role.CLIENT })
   role?: Role;
 
-  @Field({ nullable: true })
-  phone?: string; // Este campo se guardará en wp_usermeta como 'billing_phone'
+  @Field(() => String, { nullable: true })
+  phone?: string;
 }
 
 @InputType()
 export class UpdateUserInput {
   @Field(() => Int)
   @IsInt()
-  id: number; // Coincide con wp_users.ID (Int)
+  id: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsEmail()
   email?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   displayName?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
-  phone?: string; // Se procesará hacia wp_usermeta
+  phone?: string;
 }

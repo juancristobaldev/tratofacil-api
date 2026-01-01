@@ -1,10 +1,10 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
-import { PaymentProvider, PaymentStatus } from '@prisma/client'; // Importar Enums de Prisma
+import { PaymentProvider, PaymentStatus } from '@prisma/client';
 import { Order } from './order.entity';
 
 @ObjectType()
 export class Payment {
-  @Field(() => Int) // Coherente con @id @default(autoincrement()) en Prisma
+  @Field(() => Int)
   id: number;
 
   @Field(() => Int)
@@ -16,23 +16,23 @@ export class Payment {
   @Field(() => Float)
   amount: number;
 
-  @Field(() => PaymentProvider) // Coherente con enum PaymentProvider { WEBPAY, MERCADOPAGO }
+  @Field(() => PaymentProvider)
   provider: PaymentProvider;
 
-  @Field(() => PaymentStatus) // Coherente con enum PaymentStatus { INITIATED, CONFIRMED, FAILED }
+  @Field(() => PaymentStatus)
   status: PaymentStatus;
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   createdAt?: Date;
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   updatedAt?: Date;
 }
 
 @InputType()
 export class CreatePaymentInput {
-  @Field()
-  orderId: string; // Se convertirá a Number en el servicio
+  @Field(() => String)
+  orderId: string;
 
   @Field(() => Float)
   amount: number;
