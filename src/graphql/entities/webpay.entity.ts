@@ -2,9 +2,9 @@ import { ObjectType, Field } from '@nestjs/graphql';
 
 @ObjectType()
 export class WebpayResponse {
-  @Field()
+  @Field(() => String)
   token: string;
 
-  @Field()
+  @Field(() => String)
   url: string;
 }

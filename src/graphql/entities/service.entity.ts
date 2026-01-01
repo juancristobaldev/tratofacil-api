@@ -1,14 +1,14 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
-import { Provider } from './provider.entity';
-import { Category } from './category.entity';
 import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
   IsBoolean,
   IsString,
-  IsInt, // <--- Importar IsInt
+  IsInt,
 } from 'class-validator';
+import { Provider } from './provider.entity';
+import { Category } from './category.entity';
 
 @ObjectType()
 export class ServiceProvider {
@@ -107,13 +107,11 @@ export class CreateServiceInput {
   @IsNumber()
   price: number;
 
-  // ALINEACIÓN: Int (Era String)
   @Field(() => Int)
   @IsNotEmpty()
   @IsInt()
   categoryId: number;
 
-  // ALINEACIÓN: Int (Era String)
   @Field(() => Int)
   @IsNotEmpty()
   @IsInt()

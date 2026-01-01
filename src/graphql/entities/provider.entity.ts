@@ -1,6 +1,6 @@
 import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
+import { IsNotEmpty, IsString, IsOptional, IsInt } from 'class-validator';
 import { User } from './user.entity';
-import { IsOptional, IsString } from 'class-validator';
 import { Service } from './service.entity';
 
 @ObjectType()
@@ -8,23 +8,23 @@ export class BankAccount {
   @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   bankName: string;
 
-  @Field()
+  @Field(() => String)
   accountNumber: string;
 
-  @Field()
+  @Field(() => String)
   accountType: string;
+
+  @Field(() => String, { nullable: true })
+  rut?: string;
+
+  @Field(() => String, { nullable: true })
+  email?: string;
 
   @Field(() => Int)
   providerId: number;
-
-  @Field(() => Date, { nullable: true }) // Tipo explícito Date
-  createdAt: Date | null;
-
-  @Field(() => Date, { nullable: true }) // Tipo explícito Date
-  updatedAt: Date | null;
 }
 
 @ObjectType()
@@ -32,50 +32,88 @@ export class Provider {
   @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   name: string;
 
-  @Field(() => String, { nullable: true }) // Tipo explícito String
-  location?: string | null;
+  @Field(() => String)
+  slug: string;
 
-  @Field(() => String, { nullable: true }) // Tipo explícito String
-  logoUrl?: string | null;
+  @Field(() => String, { nullable: true })
+  location?: string;
+
+  @Field(() => String, { nullable: true })
+  logoUrl?: string;
+
+  @Field(() => String, { nullable: true })
+  bio?: string;
+
+  @Field(() => String, { nullable: true })
+  phone?: string;
 
   @Field(() => Int)
   userId: number;
 
-  @Field(() => User, { nullable: true })
-  user?: User | null;
+  @Field(() => User)
+  user: User;
 
   @Field(() => BankAccount, { nullable: true })
-  bank?: BankAccount | null;
+  bank?: BankAccount;
 
   @Field(() => [Service], { nullable: 'itemsAndList' })
-  services?: Service[] | null;
+  services?: Service[];
 
-  @Field(() => Date, { nullable: true }) // Tipo explícito Date
-  createdAt?: Date | null;
+  @Field(() => Date)
+  createdAt: Date;
 
-  @Field(() => Date, { nullable: true }) // Tipo explícito Date
-  updatedAt?: Date | null;
+  @Field(() => Date)
+  updatedAt: Date;
+}
+
+@InputType()
+export class CreateProviderInput {
+  @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
+  location: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  phone?: string;
 }
 
 @InputType()
 export class UpdateProviderInput {
   @Field(() => Int)
+  @IsInt()
   providerId: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   name?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   location?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   logoUrl?: string;
@@ -84,17 +122,18 @@ export class UpdateProviderInput {
 @InputType()
 export class UpdateBankInput {
   @Field(() => Int)
+  @IsInt()
   bankId: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   bankName?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   accountNumber?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   accountType?: string;
 }

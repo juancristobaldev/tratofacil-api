@@ -1,4 +1,5 @@
 import { ObjectType, Field, InputType } from '@nestjs/graphql';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 import { User } from './user.entity';
 
 @ObjectType()
@@ -12,9 +13,12 @@ export class AuthType {
 
 @InputType()
 export class LoginInput {
-  @Field()
+  @Field(() => String)
+  @IsEmail()
   email: string;
 
-  @Field()
+  @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
   password: string;
 }

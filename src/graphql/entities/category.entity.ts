@@ -1,51 +1,66 @@
 import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
-import { Service } from './service.entity'; // Importación asumiendo que existe el archivo
+import { IsNotEmpty, IsString, IsOptional, IsInt } from 'class-validator';
+import { Service } from './service.entity';
 
 @ObjectType()
 export class Category {
   @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   name: string;
 
-  @Field()
+  @Field(() => String)
   slug: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   description?: string;
 
   @Field(() => Int, { nullable: true })
   parentId?: number;
 
-  // Relación con servicios (subcategorías en WordPress)
   @Field(() => [Service], { nullable: 'itemsAndList' })
   services?: Service[];
 }
 
 @InputType()
 export class CreateCategoryInput {
-  @Field()
+  @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
   name: string;
 
-  @Field()
+  @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
   slug: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
   description?: string;
 
   @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
   parentId?: number;
 }
 
 @InputType()
 export class UpdateCategoryInput {
-  @Field({ nullable: true })
+  @Field(() => Int)
+  @IsInt()
+  id: number;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
   name?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
+  @IsOptional()
   slug?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
+  @IsOptional()
   description?: string;
 }

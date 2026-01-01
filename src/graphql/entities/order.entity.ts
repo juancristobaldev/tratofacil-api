@@ -1,6 +1,6 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
 import { User } from './user.entity';
-import { OrderStatus } from '../enums/order-status.enum'; // Usar Enum local registrado
+import { OrderStatus } from '../enums/order-status.enum';
 import { Service } from './service.entity';
 import { IsInt, IsNotEmpty } from 'class-validator';
 
@@ -87,7 +87,6 @@ export class Order {
 
 @InputType()
 export class CreateOrderInput {
-  // ALINEACIÓN: Int (Era String)
   @Field(() => Int)
   @IsNotEmpty()
   @IsInt()

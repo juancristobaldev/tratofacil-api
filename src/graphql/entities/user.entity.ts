@@ -8,9 +8,6 @@ import {
   IsEnum,
   IsInt,
 } from 'class-validator';
-// -------------------------------------------------------------------------
-// CORRECCIÓN: Importamos el Enum desde el archivo local, NO de Prisma
-// -------------------------------------------------------------------------
 import { Role } from '../enums/role.enum';
 import { Provider } from './provider.entity';
 
@@ -46,8 +43,6 @@ export class User {
   @Field(() => Role, { nullable: true })
   role?: Role;
 
-  // Nota: isEmailVerified no existe nativamente en wp_users,
-  // se suele manejar vía usermeta si es necesario. Lo dejo opcional.
   @Field(() => Boolean, { nullable: true })
   isEmailVerified?: boolean;
 
@@ -57,7 +52,6 @@ export class User {
   @Field(() => Provider, { nullable: true })
   provider?: Provider;
 
-  // ALINEACIÓN: En WP la columna es 'user_registered', en el schema lo llamamos 'registered'
   @Field(() => Date)
   registered: Date;
 }
