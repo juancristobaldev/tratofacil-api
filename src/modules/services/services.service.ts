@@ -4,10 +4,70 @@ import {
   UpdateServiceInput,
 } from 'src/graphql/entities/service.entity';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { WordpressService } from '../wordpress/wordpress.service';
 
 @Injectable()
 export class ServicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly wpService: WordpressService,
+  ) {}
+
+  /**
+   * Crear Servicio -> Crea Producto en WP
+   */
+  async create(data: CreateServiceInput) {
+    const categoryId = parseInt(data.categoryId, 10); // ID de la categoría del Rubro (ej. Plomería)
+
+    // 1. Buscamos el proveedor en nuestra DB para obtener su nombre (que es su categoría en WP)
+    // O mejor aún, si agregaste wpTermId al Provider, úsalo aquí.
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: parseInt(data.providerId, 10) }, // Asumiendo que viene providerId
+    });
+
+    if (!provider) throw new NotFoundException('Proveedor no encontrado');
+
+    // 🧠 Lógica Jimmy Neutron:
+    // Necesitamos el ID de WP de la categoría del Proveedor.
+    // Si no lo guardamos en BD, tendremos que buscarlo o asumir que el providerId
+    // de Prisma NO es el mismo que el term_id de WP.
+    // *RECOMENDACIÓN URGENTE*: Agrega `wpTermId Int?` a tu modelo Provider.
+
+    // Suponiendo que ya tienes el ID de la categoría del proveedor (digamos que lo buscaste o lo tienes):
+    // const providerWpTermId = provider.wpTermId;
+
+    // 2. Crear el Producto en WP via API
+    const wpProduct = await this.wpService.createProduct({
+      name: data.name,
+      type: 'simple',
+      regular_price: String(data.price),
+      description: data.description,
+      short_description: `Servicio ofrecido por ${provider.name}`,
+      categories: [
+        { id: categoryId }, // La categoría del Rubro (que ya debe existir en WP)
+        // { id: providerWpTermId } // La subcategoría del Proveedor
+      ],
+      meta_data: [
+        { key: 'has_home_visit', value: String(data.hasHomeVisit) },
+        { key: 'provider_id_app', value: data.providerId }, // Referencia cruzada para seguridad
+      ],
+    });
+
+    // 3. Prisma se actualiza solo (Magic!)
+    // Como WP comparte la DB, Prisma verá el nuevo post en `wp_posts` eventualmente.
+    // PERO, para devolver la respuesta inmediata a tu Frontend en GraphQL,
+    // puedes devolver un objeto construido con los datos de `wpProduct`.
+
+    // Si necesitas crear un registro espejo en una tabla personalizada (si la usas), hazlo aquí.
+    // Si usas los modelos nativos `Product` (mapeado a wp_posts), ¡ya está listo!
+
+    return {
+      id: wpProduct.id,
+      name: wpProduct.name,
+      price: parseFloat(wpProduct.price),
+      // ... mapea el resto
+    };
+  }
 
   /**
    * Busca el detalle de una oferta específica (Product) vinculada
@@ -68,56 +128,6 @@ export class ServicesService {
   /**
    * Crear una oferta (Producto en Prisma/WP) vinculada a una categoría (Service en Prisma/WP)
    */
-  async create(data: CreateServiceInput) {
-    // Conversión de IDs a Number para coherencia con Int en Prisma
-    const categoryId = parseInt(data.categoryId, 10);
-
-    // 1. Validar que la categoría/servicio existe en wp_terms
-    const serviceCategory = await this.prisma.service.findUnique({
-      where: { id: categoryId },
-    });
-
-    if (!serviceCategory) {
-      throw new NotFoundException(
-        `La categoría con ID ${categoryId} no existe`,
-      );
-    }
-
-    const commission = data.price * 0.1;
-    const netAmount = data.price - commission;
-
-    // 2. Crear el Producto (wp_posts) con sus metadatos (wp_postmeta)
-    return this.prisma.product.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        commission: commission,
-        netAmount: netAmount,
-        // Relación con la categoría (Service)
-        service: {
-          connect: { id: categoryId },
-        },
-        // Persistencia de metadatos en wp_postmeta
-        postmeta: {
-          create: [
-            {
-              key: 'provider_id',
-              value: data.providerId,
-            },
-            {
-              key: 'has_home_visit',
-              value: String(data.hasHomeVisit),
-            },
-          ],
-        },
-      },
-      include: {
-        service: true,
-        postmeta: true,
-      },
-    });
-  }
 
   /**
    * Actualizar un producto/oferta existente
