@@ -6,106 +6,140 @@ import {
   MinLength,
   IsOptional,
   IsEnum,
+  IsUrl,
   IsInt,
 } from 'class-validator';
 import { Role } from '../enums/role.enum';
-import { Provider } from './provider.entity';
+import { Provider } from './provider.entity'; // Se asume que existe
 
+// =========================================================
+// 1. ENTIDAD USERMETA (Mapeo wp_usermeta)
+// =========================================================
 @ObjectType()
 export class UserMeta {
   @Field(() => Int)
-  id: number;
+  umeta_id: number;
 
   @Field(() => Int)
   userId: number;
 
-  @Field(() => String, { nullable: true })
-  key?: string;
+  @Field()
+  key: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   value?: string;
 }
 
+// =========================================================
+// 2. ENTIDAD USER (Mapeo wp_users)
+// =========================================================
 @ObjectType()
 export class User {
   @Field(() => Int)
   id: number;
 
-  @Field(() => String)
-  username: string;
+  @Field()
+  username: string; // user_login
 
-  @Field(() => String)
-  email: string;
+  @Field()
+  email: string; // user_email
 
-  @Field(() => String, { nullable: true })
-  displayName?: string;
+  @Field()
+  nicename: string; // user_nicename
 
-  @Field(() => Role, { nullable: true })
-  role?: Role;
+  @Field({ nullable: true })
+  displayName: string; // display_name
 
-  @Field(() => Boolean, { nullable: true })
-  isEmailVerified?: boolean;
+  @Field()
+  url: string; // user_url
 
+  @Field()
+  registered: Date; // user_registered
+
+  @Field(() => Int)
+  status: number; // user_status
+
+  // Campo calculado: Se extrae de wp_usermeta (wp_capabilities)
+  @Field(() => Role)
+  role: Role;
+
+  // Relaciones
   @Field(() => [UserMeta], { nullable: 'itemsAndList' })
   usermeta?: UserMeta[];
 
   @Field(() => Provider, { nullable: true })
   provider?: Provider;
-
-  @Field(() => Date)
-  registered: Date;
 }
 
+// =========================================================
+// 3. INPUT: REGISTRO
+// =========================================================
 @InputType()
 export class RegisterInput {
-  @Field(() => String)
-  @IsEmail()
+  @Field()
+  @IsEmail({}, { message: 'Email inválido' })
   email: string;
 
-  @Field(() => String)
+  @Field()
   @IsNotEmpty()
-  @MinLength(6)
+  @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
   password: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
   username?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
   displayName?: string;
 
-  @Field(() => Role, { nullable: true, defaultValue: Role.CLIENT })
+  @Field(() => Role, { defaultValue: Role.CLIENT })
   @IsEnum(Role)
-  @IsOptional()
-  role?: Role;
+  role: Role;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
-  phone?: string;
+  phone?: string; // Se guardará en usermeta (billing_phone)
 }
 
+// =========================================================
+// 4. INPUT: LOGIN
+// =========================================================
+@InputType()
+export class LoginInput {
+  @Field()
+  @IsEmail()
+  email: string;
+
+  @Field()
+  @IsNotEmpty()
+  password: string;
+}
+
+// =========================================================
+// 5. INPUT: ACTUALIZACIÓN DE PERFIL
+// =========================================================
 @InputType()
 export class UpdateUserInput {
   @Field(() => Int)
   @IsInt()
   id: number;
 
-  @Field(() => String, { nullable: true })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
   displayName?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsUrl()
+  url?: string;
+
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
-  phone?: string;
+  nicename?: string;
 }

@@ -1,60 +1,51 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
-import { User } from './user.entity';
+import {
+  IsNotEmpty,
+  IsInt,
+  IsNumber,
+  IsArray,
+  ValidateNested,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { OrderStatus } from '../enums/order-status.enum';
-import { Service } from './service.entity';
-import { IsInt, IsNotEmpty } from 'class-validator';
+import { PaymentProvider } from '../enums/payment-provider.enum';
+import { PaymentStatus } from '../enums/payment-status.enum';
+import { User } from './user.entity';
 
+// =========================================================
+// 1. ENTIDAD PAYMENT (Mapeo Payment)
+// =========================================================
 @ObjectType()
-export class PostMeta {
+export class Payment {
   @Field(() => Int)
   id: number;
 
   @Field(() => Int)
-  postId: number;
+  orderId: number;
 
-  @Field(() => String)
-  key: string;
+  @Field(() => Float)
+  amount: number;
 
-  @Field(() => String)
-  value: string;
-}
+  @Field(() => PaymentProvider)
+  provider: PaymentProvider;
 
-@ObjectType()
-export class Product {
-  @Field(() => Int)
-  id: number;
+  @Field(() => PaymentStatus)
+  status: PaymentStatus;
 
-  @Field(() => String)
-  name: string;
+  @Field({ nullable: true })
+  transactionId?: string; // Token de Webpay o ID de transferencia
 
-  @Field(() => String, { nullable: true })
-  description?: string;
-
-  @Field(() => Float, { nullable: true })
-  price?: number;
-
-  @Field(() => Float, { nullable: true })
-  netAmount?: number;
-
-  @Field(() => Float, { nullable: true })
-  commission?: number;
-
-  @Field(() => Int, { nullable: true })
-  serviceId?: number;
-
-  @Field(() => Service, { nullable: true })
-  service?: Service;
-
-  @Field(() => [PostMeta], { nullable: 'itemsAndList' })
-  postmeta?: PostMeta[];
-
-  @Field(() => Date)
+  @Field()
   createdAt: Date;
 
-  @Field(() => Date)
+  @Field()
   updatedAt: Date;
 }
 
+// =========================================================
+// 2. ENTIDAD ORDER (Mapeo Order)
+// =========================================================
 @ObjectType()
 export class Order {
   @Field(() => Int)
@@ -63,32 +54,66 @@ export class Order {
   @Field(() => Int)
   clientId: number;
 
-  @Field(() => User, { nullable: true })
-  client?: User;
-
-  @Field(() => Int)
-  productId: number;
-
-  @Field(() => Product, { nullable: true })
-  product?: Product;
+  @Field(() => Float)
+  total: number;
 
   @Field(() => OrderStatus)
   status: OrderStatus;
 
-  @Field(() => Float)
-  total: number;
+  @Field(() => Int, { nullable: true })
+  wcOrderId?: number; // Referencia al pedido real en WooCommerce
 
-  @Field(() => Date, { nullable: true })
-  createdAt?: Date;
+  @Field({ nullable: true })
+  wcOrderKey?: string; // Clave para checkout externo si fuera necesario
 
-  @Field(() => Date, { nullable: true })
-  updatedAt?: Date;
+  @Field(() => User)
+  client: User;
+
+  @Field(() => Payment, { nullable: true })
+  payment?: Payment;
+
+  @Field()
+  createdAt: Date;
+
+  @Field()
+  updatedAt: Date;
+}
+
+// =========================================================
+// 3. INPUTS PARA CARRITO Y ORDEN
+// =========================================================
+@InputType()
+export class OrderItemInput {
+  @Field(() => Int)
+  @IsInt()
+  serviceId: number; // ID del WpPost (Producto)
+
+  @Field(() => Int)
+  @IsInt()
+  @Min(1)
+  quantity: number;
 }
 
 @InputType()
 export class CreateOrderInput {
-  @Field(() => Int)
-  @IsNotEmpty()
-  @IsInt()
-  productId: number;
+  @Field(() => [OrderItemInput])
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemInput)
+  items: OrderItemInput[];
+
+  // El total se calcula en el Backend por seguridad, pero podrías
+  // enviarlo para validación cruzada.
+}
+
+// =========================================================
+// 4. ENTIDAD DE RESPUESTA WEBPAY (Helper)
+// =========================================================
+@ObjectType()
+export class WebpayResponse {
+  @Field()
+  token: string;
+
+  @Field()
+  url: string;
 }

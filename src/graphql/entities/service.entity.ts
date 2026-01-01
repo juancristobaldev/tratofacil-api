@@ -1,139 +1,156 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
 import {
   IsNotEmpty,
+  IsString,
   IsOptional,
   IsNumber,
   IsBoolean,
-  IsString,
   IsInt,
+  Min,
 } from 'class-validator';
 import { Provider } from './provider.entity';
-import { Category } from './category.entity';
 
+// =========================================================
+// 1. ENTIDAD CATEGORY (Mapeo WpTerm + WpTermTaxonomy)
+// =========================================================
 @ObjectType()
-export class ServiceProvider {
+export class Category {
   @Field(() => Int)
-  id: number;
+  id: number; // Mapeado desde term_id (BigInt)
 
-  @Field(() => String)
+  @Field()
   name: string;
 
-  @Field(() => Float, { nullable: true })
-  price: number;
+  @Field()
+  slug: string;
 
-  @Field(() => Float, { nullable: true })
-  commission: number;
-
-  @Field(() => Float, { nullable: true })
-  netAmount: number;
-
-  @Field(() => String, { nullable: true })
-  location?: string;
-}
-
-@ObjectType()
-export class ServiceDetail {
-  @Field(() => Int)
-  id: number;
-
-  @Field(() => String)
-  name: string;
-
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   description?: string;
 
-  @Field(() => Float, { nullable: true })
-  price: number;
+  @Field(() => Int, { nullable: true })
+  parentId?: number; // Mapeado desde WpTermTaxonomy.parent
 
-  @Field(() => Float, { nullable: true })
-  commission: number;
-
-  @Field(() => Float, { nullable: true })
-  netAmount: number;
-
-  @Field(() => Boolean)
-  hasHomeVisit: boolean;
-
-  @Field(() => Provider)
-  provider: Provider;
+  @Field(() => Int)
+  count: number; // Cantidad de productos en esta categoría
 }
 
+// =========================================================
+// 2. ENTIDAD SERVICE (Mapeo WpPost + WpPostMeta)
+// =========================================================
 @ObjectType()
 export class Service {
   @Field(() => Int)
-  id: number;
+  id: number; // Mapeado desde ID (BigInt)
 
-  @Field(() => String)
-  name: string;
+  @Field()
+  name: string; // post_title
 
-  @Field(() => String, { nullable: true })
-  description?: string;
+  @Field({ nullable: true })
+  description?: string; // post_content
 
-  @Field(() => Float, { nullable: true })
-  price?: number;
-
-  @Field(() => Float, { nullable: true })
-  commission?: number;
+  @Field()
+  slug: string; // post_name
 
   @Field(() => Float, { nullable: true })
-  netAmount?: number;
+  price?: number; // De WpPostMeta (_regular_price)
 
-  @Field(() => Boolean, { defaultValue: false })
-  hasHomeVisit: boolean;
+  @Field(() => Float, { nullable: true })
+  commission?: number; // Calculado (precio * 0.10)
 
-  @Field(() => [ServiceProvider], { nullable: 'itemsAndList' })
-  providers?: ServiceProvider[];
+  @Field(() => Float, { nullable: true })
+  netAmount?: number; // Calculado (precio - comisión)
+
+  @Field(() => Boolean)
+  hasHomeVisit: boolean; // De WpPostMeta (meta_key personalizada)
+
+  @Field()
+  status: string; // post_status (publish, draft)
+
+  // Relaciones
+  @Field(() => Provider, { nullable: true })
+  provider?: Provider;
 
   @Field(() => Category, { nullable: true })
   category?: Category;
 
-  @Field(() => Date, { nullable: true })
-  createdAt?: Date;
+  @Field()
+  createdAt: Date; // post_date
 }
 
+// =========================================================
+// 3. INPUT: CREAR CATEGORÍA (Rubro)
+// =========================================================
 @InputType()
-export class CreateServiceInput {
-  @Field(() => String)
+export class CreateCategoryInput {
+  @Field()
   @IsNotEmpty()
   @IsString()
   name: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  parentId?: number;
+}
+
+// =========================================================
+// 4. INPUT: CREAR SERVICIO (Producto WooCommerce)
+// =========================================================
+@InputType()
+export class CreateServiceInput {
+  @Field()
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
   description?: string;
 
   @Field(() => Float)
   @IsNumber()
+  @Min(0)
   price: number;
 
   @Field(() => Int)
-  @IsNotEmpty()
   @IsInt()
-  categoryId: number;
+  categoryId: number; // ID de la categoría (WpTerm)
 
   @Field(() => Int)
-  @IsNotEmpty()
   @IsInt()
-  providerId: number;
+  providerId: number; // ID del Provider (tabla local)
 
   @Field(() => Boolean, { defaultValue: false })
   @IsBoolean()
   hasHomeVisit: boolean;
 }
 
+// =========================================================
+// 5. INPUT: ACTUALIZAR SERVICIO
+// =========================================================
 @InputType()
 export class UpdateServiceInput {
   @Field(() => Int)
   @IsInt()
   id: number;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
   name?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
   description?: string;
@@ -143,7 +160,7 @@ export class UpdateServiceInput {
   @IsNumber()
   price?: number;
 
-  @Field(() => Boolean, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   @IsBoolean()
   hasHomeVisit?: boolean;
