@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-
 import { WebpayPlus, Environment } from 'transbank-sdk';
+import { OrderStatus } from '@prisma/client'; // Importamos el Enum nativo de Prisma
 
 @Injectable()
 export class PaymentService {
@@ -22,36 +22,28 @@ export class PaymentService {
   /**
    * Crear transacción Webpay
    */
-  /**
-   * Crear transacción Webpay
-   */
-  async createWebpayTransaction(orderId: string, returnUrl: string) {
-    const orderIdNum = Number(orderId);
-
+  async createWebpayTransaction(orderId: number, returnUrl: string) {
+    // Alineación: Recibimos number directo, no string
     const order = await this.prisma.order.findUnique({
-      where: { id: orderIdNum },
+      where: { id: orderId },
     });
 
     if (!order) {
-      throw new Error('Orden no existe');
+      throw new NotFoundException('Orden no existe');
     }
 
-    // SOLUCIÓN AL ERROR ts(2345):
-    // Usamos el operador nullish coalescing (??) para asegurar que siempre haya un número.
-    // Si el total es null, usamos 0 (o puedes lanzar un error si el total es obligatorio).
     const amount = order.total ?? 0;
-
     if (amount <= 0) {
       throw new Error('El monto de la orden debe ser mayor a cero');
     }
 
     const buyOrder = order.id.toString();
-    const sessionId = `SESSION-${order.id.toString().slice(0, 8)}`;
+    const sessionId = `SESSION-${order.id}`; // Identificador único de sesión
 
     const response = await this.webpay.create(
       buyOrder,
       sessionId,
-      amount, // Ahora 'amount' es de tipo 'number' estrictamente
+      amount,
       returnUrl,
     );
 
@@ -60,6 +52,7 @@ export class PaymentService {
       url: response.url,
     };
   }
+
   /**
    * Confirmar transacción Webpay
    */
@@ -67,13 +60,14 @@ export class PaymentService {
     const response = await this.webpay.commit(token);
 
     if (response.status !== 'AUTHORIZED') {
+      // Podrías marcar la orden como FAILED aquí si quisieras
       throw new Error('Pago no autorizado');
     }
 
-    // 4. Convertimos el buy_order (string) de vuelta a number para Prisma
+    // ALINEACIÓN: Usamos el Enum OrderStatus correcto
     await this.prisma.order.update({
       where: { id: Number(response.buy_order) },
-      data: { status: 'PAID' },
+      data: { status: OrderStatus.COMPLETED }, // 'PAID' no existía
     });
 
     return response;

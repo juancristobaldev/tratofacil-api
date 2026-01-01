@@ -1,11 +1,17 @@
 import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsEnum,
+  IsInt,
+} from 'class-validator';
 // -------------------------------------------------------------------------
-// ERROR AQUÍ: No importes de '@prisma/client'.
-// SOLUCIÓN: Importa desde tu archivo local donde hiciste el registerEnumType
+// CORRECCIÓN: Importamos el Enum desde el archivo local, NO de Prisma
 // -------------------------------------------------------------------------
 import { Role } from '../enums/role.enum';
-// -------------------------------------------------------------------------
-import { IsEmail, IsOptional, IsString, IsInt } from 'class-validator';
 import { Provider } from './provider.entity';
 
 @ObjectType()
@@ -16,11 +22,11 @@ export class UserMeta {
   @Field(() => Int)
   userId: number;
 
-  @Field(() => String, { nullable: true }) // Tipo explícito String
-  key?: string | null;
+  @Field(() => String, { nullable: true })
+  key?: string;
 
-  @Field(() => String, { nullable: true }) // Tipo explícito String
-  value?: string | null;
+  @Field(() => String, { nullable: true })
+  value?: string;
 }
 
 @ObjectType()
@@ -28,52 +34,63 @@ export class User {
   @Field(() => Int)
   id: number;
 
-  @Field()
+  @Field(() => String)
   username: string;
 
-  @Field()
-  email: string;
-
-  @Field()
-  displayName: string;
-
-  @Field(() => Role, { nullable: true })
-  role?: Role | null;
-
-  @Field(() => Boolean, { nullable: true }) // Tipo explícito Boolean
-  isEmailVerified?: boolean | null;
-
-  @Field(() => [UserMeta], { nullable: 'itemsAndList' })
-  usermeta?: UserMeta[] | null;
-
-  @Field(() => Provider, { nullable: true })
-  provider?: Provider | null;
-
-  @Field()
-  createdAt: Date;
-
-  @Field(() => Date, { nullable: true }) // Tipo explícito Date
-  updatedAt?: Date | null;
-}
-@InputType()
-export class RegisterInput {
   @Field(() => String)
   email: string;
-
-  @Field(() => String)
-  password: string;
-
-  @Field(() => String, { nullable: true })
-  username?: string;
 
   @Field(() => String, { nullable: true })
   displayName?: string;
 
-  // Aquí también usa el Role importado correctamente
+  @Field(() => Role, { nullable: true })
+  role?: Role;
+
+  // Nota: isEmailVerified no existe nativamente en wp_users,
+  // se suele manejar vía usermeta si es necesario. Lo dejo opcional.
+  @Field(() => Boolean, { nullable: true })
+  isEmailVerified?: boolean;
+
+  @Field(() => [UserMeta], { nullable: 'itemsAndList' })
+  usermeta?: UserMeta[];
+
+  @Field(() => Provider, { nullable: true })
+  provider?: Provider;
+
+  // ALINEACIÓN: En WP la columna es 'user_registered', en el schema lo llamamos 'registered'
+  @Field(() => Date)
+  registered: Date;
+}
+
+@InputType()
+export class RegisterInput {
+  @Field(() => String)
+  @IsEmail()
+  email: string;
+
+  @Field(() => String)
+  @IsNotEmpty()
+  @MinLength(6)
+  password: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  username?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
   @Field(() => Role, { nullable: true, defaultValue: Role.CLIENT })
+  @IsEnum(Role)
+  @IsOptional()
   role?: Role;
 
   @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
   phone?: string;
 }
 
