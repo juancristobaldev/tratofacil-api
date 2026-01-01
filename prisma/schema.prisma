@@ -7,198 +7,232 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-////////////////////
-/// ENUMS
-////////////////////
+// =========================================================
+// 1. CORE DE WORDPRESS (IDENTIDAD Y ROLES)
+// =========================================================
 
-enum Role {
-  CLIENT
-  PROVIDER
-  ADMIN
+/// Mapeo directo de la tabla de usuarios de WordPress
+model User {
+  id            Int      @id @default(autoincrement()) @map("ID")
+  username      String   @unique @map("user_login") @db.VarChar(60)
+  password      String   @map("user_pass") @db.VarChar(255)
+  nicename      String   @map("user_nicename") @db.VarChar(50)
+  email         String   @unique @map("user_email") @db.VarChar(100)
+  url           String   @default("") @map("user_url") @db.VarChar(100)
+  registered    DateTime @default(now()) @map("user_registered")
+  activationKey String   @default("") @map("user_activation_key") @db.VarChar(255)
+  status        Int      @default(0) @map("user_status")
+  displayName   String   @default("") @map("display_name") @db.VarChar(250)
+
+  // Relaciones
+  usermeta UserMeta[]
+  provider Provider? // Relación con nuestra tabla extendida
+  orders   Order[] // Relación con nuestra tabla espejo de órdenes
+
+  @@map("wp_users")
 }
+
+/// Mapeo de metadatos (Roles, Capabilities, etc.)
+model UserMeta {
+  umeta_id Int     @id @default(autoincrement())
+  userId   Int     @map("user_id")
+  key      String  @map("meta_key") @db.VarChar(255)
+  value    String? @map("meta_value") @db.LongText
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "user_id")
+  @@index([key], map: "meta_key")
+  @@map("wp_usermeta")
+}
+
+// =========================================================
+// 2. EXTENSIÓN DE LA APP (PROVEEDORES Y DATOS PRIVADOS)
+// =========================================================
+
+/// Tabla propia para manejar datos del proveedor de forma estructurada
+model Provider {
+  id Int @id @default(autoincrement())
+
+  // Relación 1-1 con el Usuario de WP
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
+  // Vinculación con WooCommerce (El proveedor actúa como una "Marca/Categoría")
+  wcCategoryId Int? @unique // ID de la categoría en wp_terms que representa a este proveedor
+
+  name     String
+  slug     String  @unique // Para URLs amigables en tu frontend (/proveedor/juan-perez)
+  location String?
+  bio      String? @db.Text
+  logoUrl  String?
+  phone    String?
+
+  // Datos sensibles separados
+  bankAccount BankAccount?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BankAccount {
+  id            Int     @id @default(autoincrement())
+  bankName      String
+  accountNumber String
+  accountType   String // Vista, Corriente, Ahorro
+  rut           String?
+  email         String?
+
+  providerId Int      @unique
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+}
+
+// =========================================================
+// 3. CATÁLOGO DE WORDPRESS (LECTURA RÁPIDA)
+// =========================================================
+// Estas tablas las usamos para LEER categorías y servicios velozmente.
+// La escritura (Crear servicios) se hace vía API de Woo para mantener la integridad.
+
+model WpTerm {
+  term_id    Int    @id @default(autoincrement())
+  name       String @db.VarChar(200)
+  slug       String @default("") @db.VarChar(200)
+  term_group Int    @default(0)
+
+  taxonomies WpTermTaxonomy[]
+
+  @@index([slug], map: "slug")
+  @@index([name], map: "name")
+  @@map("wp_terms")
+}
+
+model WpTermTaxonomy {
+  term_taxonomy_id Int    @id @default(autoincrement())
+  term_id          Int
+  taxonomy         String @db.VarChar(32) // 'product_cat', 'product_tag'
+  description      String @db.LongText
+  parent           Int    @default(0)
+  count            Int    @default(0)
+
+  term          WpTerm               @relation(fields: [term_id], references: [term_id])
+  relationships WpTermRelationship[]
+
+  @@unique([term_id, taxonomy], map: "term_id_taxonomy")
+  @@index([taxonomy], map: "taxonomy")
+  @@map("wp_term_taxonomy")
+}
+
+model WpTermRelationship {
+  object_id        Int // ID del Producto (wp_posts.ID)
+  term_taxonomy_id Int
+  term_order       Int @default(0)
+
+  taxonomy WpTermTaxonomy @relation(fields: [term_taxonomy_id], references: [term_taxonomy_id])
+
+  // Relación manual con WpPost (Prisma no soporta relaciones polimórficas nativas fáciles, lo hacemos manual)
+  post WpPost @relation(fields: [object_id], references: [ID])
+
+  @@id([object_id, term_taxonomy_id])
+  @@index([term_taxonomy_id], map: "term_taxonomy_id")
+  @@map("wp_term_relationships")
+}
+
+/// Servicios = Productos de WooCommerce
+model WpPost {
+  ID           Int      @id @default(autoincrement())
+  post_author  Int      @default(0)
+  post_date    DateTime @default(now())
+  post_content String   @db.LongText
+  post_title   String   @db.Text
+  post_status  String   @default("publish") @db.VarChar(20) // 'publish', 'draft'
+  post_type    String   @default("post") @db.VarChar(20) // Filtraremos por 'product' en el código
+  post_name    String   @default("") @db.VarChar(200) // El slug
+
+  // Relaciones para categorización
+  termRelationships WpTermRelationship[]
+
+  // Metadatos (Precio, visita a domicilio, etc se guardan aquí en Woo)
+  postmeta WpPostMeta[]
+
+  @@index([post_name], map: "post_name")
+  @@index([post_type, post_status, post_date, ID], map: "type_status_date")
+  @@map("wp_posts")
+}
+
+model WpPostMeta {
+  meta_id    Int     @id @default(autoincrement())
+  post_id    Int
+  meta_key   String? @db.VarChar(255)
+  meta_value String? @db.LongText
+
+  post WpPost @relation(fields: [post_id], references: [ID], onDelete: Cascade)
+
+  @@index([post_id], map: "post_id")
+  @@index([meta_key], map: "meta_key")
+  @@map("wp_postmeta")
+}
+
+// =========================================================
+// 4. COMERCIO & TRANSACCIONES (ESPEJO & CONTROL)
+// =========================================================
 
 enum OrderStatus {
   PENDING
-  PAID
+  PROCESSING
+  COMPLETED
   CANCELLED
+  FAILED
 }
 
 enum PaymentProvider {
   WEBPAY
   MERCADOPAGO
+  TRANSFER
 }
 
-enum PaymentStatus {
-  INITIATED
-  CONFIRMED
-  FAILED
-}
-
-////////////////////
-/// MODELS
-////////////////////
-
-/// Usuarios (wp_users)
-model User {
-  id              Int      @id @default(autoincrement()) @map("ID")
-  username        String   @unique @map("user_login")
-  email           String   @unique @map("user_email")
-  password        String   @map("user_pass")
-  displayName     String   @map("display_name")
-  role            Role?    @default(CLIENT)
-  isEmailVerified Boolean? @default(false)
-
-  orders   Order[]   @relation("ClientOrders")
-  provider Provider?
-
-  createdAt DateTime  @default(now()) @map("user_registered")
-  updatedAt DateTime? @updatedAt
-
-  usermeta UserMeta[]
-
-  @@map("wp_users")
-}
-
-/// Metadatos de usuarios (wp_usermeta)
-model UserMeta {
-  id     Int     @id @default(autoincrement()) @map("umeta_id")
-  userId Int     @map("user_id")
-  key    String? @map("meta_key") // Agregado '?' por seguridad
-  value  String? @map("meta_value") // Agregado '?' para evitar el error de datos NULL
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@map("wp_usermeta")
-}
-
-/// Proveedores (APP)
-model Provider {
-  id       Int     @id @default(autoincrement())
-  name     String
-  location String?
-  logoUrl  String?
-
-  userId Int  @unique
-  user   User @relation(fields: [userId], references: [id])
-
-  bank     BankAccount?
-  services Service[]
-
-  createdAt DateTime? @default(now())
-  updatedAt DateTime? @updatedAt
-}
-
-/// Cuenta bancaria del proveedor (APP)
-model BankAccount {
-  id            Int    @id @default(autoincrement())
-  bankName      String
-  accountNumber String
-  accountType   String
-
-  providerId Int      @unique
-  provider   Provider @relation(fields: [providerId], references: [id])
-
-  createdAt DateTime? @default(now())
-  updatedAt DateTime? @updatedAt
-}
-
-/// Categorías principales (wp_terms)
-model Category {
-  id          Int     @id @default(autoincrement()) @map("term_id")
-  name        String  @map("name")
-  slug        String  @unique @map("slug")
-  description String?
-
-  services Service[]
-
-  parentId Int? @map("parent")
-}
-
-/// Subcategorías → servicios (wp_terms mapeados como servicios)
-model Service {
-  id          Int     @id @default(autoincrement()) @map("term_id")
-  name        String  @map("name")
-  slug        String  @unique @map("slug")
-  description String?
-
-  categoryId Int      @map("parent")
-  category   Category @relation(fields: [categoryId], references: [id])
-
-  providerId Int?
-  provider   Provider? @relation(fields: [providerId], references: [id])
-
-  products Product[]
-}
-
-/// Productos (wp_posts)
-model Product {
-  id          Int     @id @default(autoincrement()) @map("ID")
-  name        String  @map("post_title")
-  description String? @map("post_content")
-  price       Float?
-  netAmount   Float?
-  commission  Float?
-
-  serviceId Int?
-  service   Service? @relation(fields: [serviceId], references: [id])
-
-  orders Order[]
-
-  createdAt DateTime @default(now()) @map("post_date")
-  updatedAt DateTime @updatedAt @map("post_modified")
-
-  postmeta PostMeta[]
-
-  @@map("wp_posts")
-}
-
-model PostMeta {
-  id     Int     @id @default(autoincrement()) @map("meta_id")
-  postId Int     @map("post_id")
-  key    String  @map("meta_key")
-  value  String? @map("meta_value") // <--- Agrega el '?' aquí
-
-  product Product @relation(fields: [postId], references: [id])
-
-  @@map("wp_postmeta")
-}
-
-/// Pedidos (APP)
+/// Tabla ESPEJO de Órdenes. 
+/// Es rápida, limpia y relacional. Se sincroniza con Woo vía 'wcOrderId'.
 model Order {
-  id       Int  @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
   clientId Int
-  client   User @relation("ClientOrders", fields: [clientId], references: [id])
+  client   User @relation(fields: [clientId], references: [id])
 
-  productId Int
-  product   Product @relation(fields: [productId], references: [id])
-
+  // Datos de control de la App
+  total  Float
   status OrderStatus @default(PENDING)
-  total  Float?
 
+  // Integración WooCommerce
+  wcOrderId  Int?    @unique // El ID real en WP
+  wcOrderKey String? // Seguridad de Woo
+
+  // Integración Pagos
   payment Payment?
 
-  createdAt DateTime? @default(now())
-  updatedAt DateTime? @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-/// Pagos (APP)
 model Payment {
-  id       Int             @id @default(autoincrement())
-  orderId  Int             @unique
-  order    Order           @relation(fields: [orderId], references: [id])
-  amount   Float
-  provider PaymentProvider
-  status   PaymentStatus   @default(INITIATED)
+  id      Int   @id @default(autoincrement())
+  orderId Int   @unique
+  order   Order @relation(fields: [orderId], references: [id])
 
-  createdAt DateTime? @default(now())
-  updatedAt DateTime? @updatedAt
+  amount        Float
+  provider      PaymentProvider
+  status        String // Status del proveedor de pagos (ej: 'AUTHORIZED')
+  transactionId String? // Token de Webpay o ID de MP
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-/// Verificación de correo (APP)
 model EmailVerification {
-  id        Int       @id @default(autoincrement())
-  email     String    @unique
+  id        Int      @id @default(autoincrement())
+  email     String
   code      String
   expiresAt DateTime
-  createdAt DateTime? @default(now())
+  createdAt DateTime @default(now())
 }
