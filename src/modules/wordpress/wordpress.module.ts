@@ -4,7 +4,12 @@ import { HttpModule } from '@nestjs/axios';
 
 @Global()
 @Module({
-  imports: [HttpModule], // Necesario para que WordpressService use this.httpService
+  imports: [
+    HttpModule.register({
+      timeout: 10000, // 10 segundos de timeout para evitar cuelgues
+      maxRedirects: 5,
+    }),
+  ], // Necesario para que WordpressService use this.httpService
   providers: [WordpressService],
   exports: [WordpressService], // <--- 4. Crucial: Debes exportarlo para que otros lo usen
 })

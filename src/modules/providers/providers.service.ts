@@ -15,8 +15,8 @@ export class ProviderService {
 
   /**
    * Crear proveedor (1–1 con User)
+   * ALINEACIÓN: Crea una Categoría en WP para el proveedor
    */
-
   async create(
     userId: string,
     data: {
@@ -25,6 +25,7 @@ export class ProviderService {
       logoUrl?: string;
     },
   ) {
+    // Convertir userId a Number
     const userIdInt = Number(userId);
 
     const exists = await this.prisma.provider.findUnique({
@@ -35,36 +36,46 @@ export class ProviderService {
       throw new ConflictException('El usuario ya tiene un proveedor');
     }
 
-    // 🧠 BRAIN BLAST: Crear la "Subcategoría" en WP primero
-    // Nota: Si quieres que estén bajo una categoría madre "Proveedores",
-    // pasa el ID de esa categoría en 'parent'. Si no, déjalo en 0 (raíz).
+    // 1. Crear la "Categoría de Proveedor" en WP
+    // Esto crea una entidad en WooCommerce para agrupar sus servicios
     const wpCategory = await this.wpService.createCategory({
-      name: data.name, // El nombre del proveedor es el nombre de la categoría
+      name: data.name,
+      description: `Servicios ofrecidos por ${data.name} en ${data.location}`,
       image: data.logoUrl ? { src: data.logoUrl } : undefined,
     });
 
-    // Guardamos en Prisma.
-    // IMPORTANTE: Deberías agregar un campo 'wpTermId' a tu modelo Provider en Prisma
-    // para enlazarlo fuertemente, pero por ahora asumiremos que se sincronizan por lógica.
+    // 2. Guardar en Base de Datos Local
     return this.prisma.provider.create({
       data: {
         ...data,
         userId: userIdInt,
-        // Aquí podrías guardar wpCategory.id si actualizas tu schema.prisma
+        // Si en el futuro agregas 'wcCategoryId' a tu schema.prisma, descomenta esto:
+        // wcCategoryId: wpCategory.id,
       },
     });
   }
 
-  // ... (Mantén tus métodos findByUser, findById, list iguales, usando Prisma para lectura rápida)
+  /**
+   * Obtener proveedor por userId (Lectura Prisma)
+   */
   async findByUser(userId: string) {
-    return this.prisma.provider.findUnique({
+    const provider = await this.prisma.provider.findUnique({
       where: { userId: Number(userId) },
-      include: { user: true }, // Quitamos services temporalmente si cambia la relación
+      include: {
+        services: true,
+        user: true,
+      },
     });
+
+    if (!provider) {
+      throw new NotFoundException('Proveedor no encontrado');
+    }
+
+    return provider;
   }
 
   /**
-   * Obtener proveedor por id
+   * Obtener proveedor por id (Lectura Prisma)
    */
   async findById(id: string) {
     const provider = await this.prisma.provider.findUnique({
@@ -83,7 +94,7 @@ export class ProviderService {
   }
 
   /**
-   * Listar todos los proveedores
+   * Listar todos los proveedores (Lectura Prisma)
    */
   list() {
     return this.prisma.provider.findMany({

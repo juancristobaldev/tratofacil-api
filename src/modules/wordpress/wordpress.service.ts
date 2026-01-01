@@ -1,18 +1,18 @@
 import {
   Injectable,
-  InternalServerErrorException,
   Logger,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class WordpressService {
   private readonly logger = new Logger(WordpressService.name);
-  private readonly wpUrl: string | undefined;
-  private readonly ck: string | undefined; // Consumer Key
-  private readonly cs: string | undefined;
+  private readonly wpUrl?: string;
+  private readonly ck?: string; // Consumer Key
+  private readonly cs?: string; // Consumer Secret
 
   constructor(
     private readonly httpService: HttpService,
@@ -21,9 +21,18 @@ export class WordpressService {
     this.wpUrl = this.configService.get<string>('WORDPRESS_URL');
     this.ck = this.configService.get<string>('WC_CONSUMER_KEY');
     this.cs = this.configService.get<string>('WC_CONSUMER_SECRET');
+
+    // Validación temprana para evitar errores silenciosos
+    if (!this.wpUrl || !this.ck || !this.cs) {
+      this.logger.warn(
+        '⚠️  ATENCIÓN: Faltan variables de entorno de WordPress (WORDPRESS_URL, WC_CONSUMER_KEY, WC_CONSUMER_SECRET). Las llamadas a la API fallarán.',
+      );
+    }
   }
 
-  // Método genérico para autenticación básica de WP/WooCommerce
+  /**
+   * Helper privado para generar parámetros de autenticación
+   */
   private getAuthParams() {
     return {
       consumer_key: this.ck,
@@ -32,47 +41,81 @@ export class WordpressService {
   }
 
   /**
-   * Crea una categoría en WooCommerce (Usado para Categorías Reales y Proveedores como Subcategorías)
+   * Método Genérico para enviar datos a WP
+   * Centraliza la lógica de conexión y errores
    */
-  async createCategory(data: {
-    name: string;
-    parent?: number;
-    image?: { src: string };
-  }) {
+  async postToWp(endpoint: string, data: any) {
     try {
+      // Normalizamos la URL para evitar dobles slashes
+      const cleanEndpoint = endpoint.startsWith('/')
+        ? endpoint.slice(1)
+        : endpoint;
+      const url = `${this.wpUrl}/wp-json/${cleanEndpoint}`;
+
       const response = await firstValueFrom(
-        this.httpService.post(
-          `${this.wpUrl}/wp-json/wc/v3/products/categories`,
-          data,
-          { params: this.getAuthParams() },
-        ),
+        this.httpService.post(url, data, {
+          params: this.getAuthParams(),
+        }),
       );
-      this.logger.log(`Categoría creada en WP: ${response.data.id}`);
-      return response.data; // Retorna el objeto completo de WP, incluyendo el ID
-    } catch (error: any) {
-      this.logger.error('Error creando categoría en WP', error.response?.data);
-      throw new InternalServerErrorException(
-        'Error al sincronizar con WordPress',
-      );
+
+      return response.data;
+    } catch (error) {
+      this.handleError(error, endpoint);
     }
   }
 
   /**
-   * Crea un Producto en WooCommerce (Tus Servicios)
+   * Crea una Categoría en WooCommerce
+   * ALINEACIÓN: Agregados 'slug' y 'description' para coincidir con CategoryService
+   */
+  async createCategory(data: {
+    name: string;
+    slug?: string; // <--- Agregado para alineación
+    description?: string; // <--- Agregado para alineación
+    parent?: number;
+    image?: { src: string };
+  }) {
+    this.logger.log(`Sincronizando categoría en WP: ${data.name}`);
+    return this.postToWp('wc/v3/products/categories', data);
+  }
+
+  /**
+   * Crea un Producto (Servicio) en WooCommerce
+   * Útil para: Publicar los servicios que crean los proveedores
    */
   async createProduct(data: any) {
-    try {
-      const response = await firstValueFrom(
-        this.httpService.post(`${this.wpUrl}/wp-json/wc/v3/products`, data, {
-          params: this.getAuthParams(),
-        }),
-      );
-      return response.data;
-    } catch (error: any) {
-      this.logger.error('Error creando producto en WP', error.response?.data);
-      throw new InternalServerErrorException(
-        'Error al crear el servicio en WordPress',
-      );
+    this.logger.log(`Publicando servicio en WP: ${data.name}`);
+    return this.postToWp('wc/v3/products', data);
+  }
+
+  /**
+   * Crea una Orden en WooCommerce
+   * Útil para: Registrar la venta y disparar emails de confirmación nativos de WP
+   */
+  async createOrder(data: any) {
+    this.logger.log('Registrando nueva orden en WP...');
+    return this.postToWp('wc/v3/orders', data);
+  }
+
+  /**
+   * Manejador de errores detallado
+   */
+  private handleError(error: any, endpoint: string) {
+    const errorResponse = error.response?.data;
+
+    // Log detallado para el desarrollador
+    this.logger.error(
+      `Error comunicando con WordPress [${endpoint}]`,
+      error.message,
+    );
+    if (errorResponse) {
+      this.logger.error('Detalle WP:', JSON.stringify(errorResponse));
     }
+
+    // Mensaje limpio para el cliente
+    const message =
+      errorResponse?.message ||
+      'Error de comunicación con el servidor de WordPress';
+    throw new InternalServerErrorException(message);
   }
 }
