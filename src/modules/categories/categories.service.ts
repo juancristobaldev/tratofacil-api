@@ -1,6 +1,7 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WordpressService } from '../wordpress/wordpress.service';
+import { CreateCategoryInput } from 'src/graphql/entities/category.entity';
 
 @Injectable()
 export class CategoryService {
@@ -10,55 +11,61 @@ export class CategoryService {
   ) {}
 
   /**
-   * Crear categoría:
-   * Usa la API de WordPress para escribir (garantiza integridad en wp_terms y wp_term_taxonomy).
+   * Crear Rubro (Categoría en WP)
    */
-  async create(data: { name: string; slug: string; imageUrl?: string }) {
-    // 1. Verificación rápida de duplicados usando lectura local
-    const exists = await this.prisma.category.findUnique({
-      where: { slug: data.slug },
-    });
-
-    if (exists) {
-      throw new ConflictException('La categoría ya existe');
-    }
-
-    // 2. Creación segura en WordPress vía API
-    const wpCategory = await this.wpService.createCategory({
+  async create(data: CreateCategoryInput) {
+    // 1. Crear vía API para que WP genere los registros en term_taxonomy
+    const wpCat = await this.wpService.createCategory({
       name: data.name,
       slug: data.slug,
-      image: data.imageUrl ? { src: data.imageUrl } : undefined,
+      description: data.description,
+      parent: data.parentId,
     });
 
-    // 3. Retornamos el objeto creado (mapeado desde la respuesta de WP)
     return {
-      id: wpCategory.id,
-      name: wpCategory.name,
-      slug: wpCategory.slug,
-      description: wpCategory.description,
+      id: Number(wpCat.id),
+      name: wpCat.name,
+      slug: wpCat.slug,
+      description: wpCat.description,
+      parentId: wpCat.parent,
     };
   }
 
   /**
-   * Listar categorías:
-   * Usa Prisma para lectura directa (Máxima velocidad).
+   * Listar Categorías (Lectura directa Prisma)
    */
-  list() {
-    return this.prisma.category.findMany({
-      orderBy: { name: 'asc' },
-    });
-  }
-
-  /**
-   * Obtener por slug:
-   * Usa Prisma para lectura directa.
-   */
-  findBySlug(slug: string) {
-    return this.prisma.category.findUnique({
-      where: { slug },
+  async list() {
+    const taxonomies = await this.prisma.wpTermTaxonomy.findMany({
+      where: { taxonomy: 'product_cat' },
       include: {
-        services: true, // Incluye subcategorías/servicios si el schema lo permite
+        term: true,
       },
     });
+
+    return taxonomies.map((t) => ({
+      id: Number(t.term_id), // Conversión de BigInt
+      name: t.term.name,
+      slug: t.term.slug,
+      description: t.description,
+      parentId: Number(t.parent),
+      count: Number(t.count),
+    }));
+  }
+
+  async findById(id: number) {
+    const taxonomy = await this.prisma.wpTermTaxonomy.findFirst({
+      where: { term_id: BigInt(id), taxonomy: 'product_cat' },
+      include: { term: true },
+    });
+
+    if (!taxonomy) throw new NotFoundException('Categoría no encontrada');
+
+    return {
+      id: Number(taxonomy.term_id),
+      name: taxonomy.term.name,
+      slug: taxonomy.term.slug,
+      description: taxonomy.description,
+      parentId: Number(taxonomy.parent),
+    };
   }
 }

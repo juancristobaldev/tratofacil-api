@@ -60,8 +60,8 @@ export class User {
   status: number; // user_status
 
   // Campo calculado: Se extrae de wp_usermeta (wp_capabilities)
-  @Field(() => Role)
-  role: Role;
+  @Field(() => Role, { nullable: true })
+  role?: Role;
 
   // Relaciones
   @Field(() => [UserMeta], { nullable: 'itemsAndList' })
@@ -130,8 +130,18 @@ export class UpdateUserInput {
 
   @Field({ nullable: true })
   @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
   @IsString()
   displayName?: string;
+
+  @Field({ nullable: true }) // Agregado para resolver el error del Service
+  @IsOptional()
+  @IsString()
+  phone?: string;
 
   @Field({ nullable: true })
   @IsOptional()

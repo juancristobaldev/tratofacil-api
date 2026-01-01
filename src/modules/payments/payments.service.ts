@@ -1,13 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WebpayPlus, Environment } from 'transbank-sdk';
-import { OrderStatus } from '@prisma/client'; // Importamos el Enum nativo de Prisma
+import { PaymentProvider, PaymentStatus, OrderStatus } from '@prisma/client';
 
 @Injectable()
 export class PaymentService {
   private webpay;
 
   constructor(private readonly prisma: PrismaService) {
+    // Configuración de Webpay (Integración por defecto)
     this.webpay = new WebpayPlus.Transaction({
       commerceCode: '597055555532',
       apiKey:
@@ -20,56 +25,99 @@ export class PaymentService {
   }
 
   /**
-   * Crear transacción Webpay
+   * Inicia la transacción en Webpay
    */
-  async createWebpayTransaction(orderId: number, returnUrl: string) {
-    // Alineación: Recibimos number directo, no string
+  async createTransaction(orderId: number) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
+      include: { client: true },
     });
 
-    if (!order) {
-      throw new NotFoundException('Orden no existe');
+    if (!order) throw new NotFoundException('Orden no encontrada');
+
+    const returnUrl = `${process.env.FRONTEND_URL}/checkout/validate`;
+    const sessionId = `session-${order.clientId}`;
+    const buyOrder = `order-${order.id}`;
+    const amount = Math.round(order.total);
+
+    try {
+      const response = await this.webpay.create(
+        buyOrder,
+        sessionId,
+        amount,
+        returnUrl,
+      );
+
+      // Creamos el registro de pago en estado INITIATED
+      await this.prisma.payment.upsert({
+        where: { orderId: order.id },
+        update: {
+          transactionId: response.token,
+          status: PaymentStatus.INITIATED,
+          provider: PaymentProvider.WEBPAY,
+        },
+        create: {
+          orderId: order.id,
+          amount: amount,
+          provider: PaymentProvider.WEBPAY,
+          status: PaymentStatus.INITIATED,
+          transactionId: response.token,
+        },
+      });
+
+      return {
+        token: response.token,
+        url: response.url,
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Error al contactar con Transbank',
+      );
     }
-
-    const amount = order.total ?? 0;
-    if (amount <= 0) {
-      throw new Error('El monto de la orden debe ser mayor a cero');
-    }
-
-    const buyOrder = order.id.toString();
-    const sessionId = `SESSION-${order.id}`; // Identificador único de sesión
-
-    const response = await this.webpay.create(
-      buyOrder,
-      sessionId,
-      amount,
-      returnUrl,
-    );
-
-    return {
-      token: response.token,
-      url: response.url,
-    };
   }
 
   /**
-   * Confirmar transacción Webpay
+   * Confirma el pago después de que el usuario vuelve de Webpay
    */
-  async confirmWebpayTransaction(token: string) {
-    const response = await this.webpay.commit(token);
+  async confirmTransaction(token: string) {
+    try {
+      const response = await this.webpay.commit(token);
 
-    if (response.status !== 'AUTHORIZED') {
-      // Podrías marcar la orden como FAILED aquí si quisieras
-      throw new Error('Pago no autorizado');
+      const payment = await this.prisma.payment.findFirst({
+        where: { transactionId: token },
+      });
+
+      if (!payment) throw new NotFoundException('Pago no registrado');
+
+      if (response.response_code === 0) {
+        // PAGO EXITOSO
+        await this.prisma.$transaction([
+          // 1. Actualizar Pago local
+          this.prisma.payment.update({
+            where: { id: payment.id },
+            data: { status: PaymentStatus.CONFIRMED },
+          }),
+          // 2. Actualizar Orden local
+          this.prisma.order.update({
+            where: { id: payment.orderId },
+            data: { status: OrderStatus.COMPLETED },
+          }),
+        ]);
+
+        // 3. Opcional: Notificar a WooCommerce vía API que la orden está pagada
+        // Aquí usarías el WordpressService.updateOrder(order.wcOrderId, { status: 'processing' })
+
+        return { success: true, orderId: payment.orderId };
+      } else {
+        // PAGO FALLIDO / RECHAZADO
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.FAILED },
+        });
+        return { success: false, message: 'Pago rechazado por el banco' };
+      }
+    } catch (error) {
+      throw new InternalServerErrorException('Error al confirmar transacción');
     }
-
-    // ALINEACIÓN: Usamos el Enum OrderStatus correcto
-    await this.prisma.order.update({
-      where: { id: Number(response.buy_order) },
-      data: { status: OrderStatus.COMPLETED }, // 'PAID' no existía
-    });
-
-    return response;
   }
 }
