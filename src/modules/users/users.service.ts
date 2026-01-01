@@ -1,185 +1,150 @@
-import { Injectable } from '@nestjs/common';
-import { Role } from 'src/graphql/enums/role.enum';
-import { GraphQLError } from 'graphql/error';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { UpdateUserInput } from 'src/graphql/entities/user.entity';
-
-// LIBRERÍAS DE COMPATIBILIDAD WP
-import * as wpHash from 'wordpress-hash-node';
-import * as PHP from 'php-serialize';
+import * as bcrypt from 'bcrypt';
+import {
+  RegisterInput,
+  UpdateUserInput,
+} from 'src/graphql/entities/user.entity';
+import { Role } from 'src/graphql/enums/role.enum';
 
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Utilidad para serializar roles al estilo WordPress PHP
+  private getWpCapabilities(role: Role): string {
+    const roleKey = role.toLowerCase();
+    return `a:1:{s:${roleKey.length}:"${roleKey}";b:1;}`;
+  }
+
+  // Utilidad para deserializar roles
+  private getRoleFromMeta(metaValue: string): Role {
+    if (metaValue.includes('admin')) return Role.ADMIN;
+    if (metaValue.includes('provider')) return Role.PROVIDER;
+    return Role.CLIENT;
+  }
+
+  // Helper para asignar el rol a la entidad de salida
+  private mapUserRole(user: any) {
+    const capMeta = user.usermeta?.find(
+      (m: any) => m.key === 'wp_capabilities',
+    );
+    if (capMeta && capMeta.value) {
+      user.role = this.getRoleFromMeta(capMeta.value);
+    } else {
+      user.role = Role.CLIENT;
+    }
+    return user;
+  }
+
   async findAll() {
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       orderBy: { registered: 'desc' },
       include: { usermeta: true },
     });
+    return users.map((user) => this.mapUserRole(user));
   }
 
-  async findOne(id: number): Promise<any> {
-    // Usar 'any' o un Partial<User> evita el choque de tipos estricto
-    return this.prisma.user.findUnique({
+  async findOne(id: number) {
+    const user = await this.prisma.user.findUnique({
       where: { id },
+      include: { usermeta: true, provider: true },
+    });
+
+    if (!user) throw new NotFoundException(`Usuario ID ${id} no encontrado`);
+    return this.mapUserRole(user);
+  }
+
+  async create(input: RegisterInput) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: input.email },
+    });
+    if (existing) throw new BadRequestException('El correo ya existe');
+
+    const hashedPassword = await bcrypt.hash(input.password, 10);
+
+    const username = input.username || input.email.split('@')[0];
+    const nicename = username.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const displayName = input.displayName || username;
+
+    const metaData = [
+      { key: 'nickname', value: username },
+      { key: 'first_name', value: displayName },
+      { key: 'wp_capabilities', value: this.getWpCapabilities(input.role) },
+      { key: 'wp_user_level', value: input.role === Role.ADMIN ? '10' : '0' },
+    ];
+
+    if (input.phone) {
+      metaData.push({ key: 'billing_phone', value: input.phone });
+    }
+
+    const newUser = await this.prisma.user.create({
+      data: {
+        email: input.email,
+        password: hashedPassword,
+        username: username,
+        nicename: nicename,
+        displayName: displayName,
+        registered: new Date(),
+        url: '',
+        status: 0,
+        activationKey: '',
+        usermeta: {
+          create: metaData,
+        },
+      },
       include: { usermeta: true },
     });
+
+    return this.mapUserRole(newUser);
   }
 
-  /**
-   * CREAR USUARIO COMPATIBLE CON WORDPRESS
-   * Maneja el hashing PHPass y la serialización de roles en PHP
-   */
-  async createWpUser(data: {
-    email: string;
-    password: string;
-    displayName: string;
-    role: Role;
-    phone?: string;
-  }) {
-    // 1. Hashing al estilo WordPress (PHPass)
-    const hashedPassword = wpHash.HashPassword(data.password);
-
-    // 2. Serialización de rol para wp_capabilities
-    const roleKey = data.role.toLowerCase();
-    const capabilities = PHP.serialize({ [roleKey]: true });
-
-    // 3. Generar nombres básicos
-    const username = data.email.split('@')[0];
-
-    return this.prisma.$transaction(async (tx) => {
-      // Crear en wp_users
-      const user = await tx.user.create({
-        data: {
-          email: data.email,
-          password: hashedPassword,
-          username: username,
-          nicename: username,
-          displayName: data.displayName,
-          status: 0,
-        },
+  // ======================================================
+  // CORRECCIÓN AQUÍ: Renombrado a updateProfile
+  // ======================================================
+  async updateProfile(id: number, input: UpdateUserInput) {
+    // Manejo de metadatos (Teléfono)
+    if (input.phone) {
+      const meta = await this.prisma.userMeta.findFirst({
+        where: { userId: id, key: 'billing_phone' },
       });
 
-      // Crear metadatos obligatorios para WP
-      const metas = [
-        { key: 'wp_capabilities', value: capabilities },
-        { key: 'wp_user_level', value: data.role === Role.ADMIN ? '10' : '0' },
-      ];
-
-      if (data.phone) {
-        metas.push({ key: 'billing_phone', value: data.phone });
-      }
-
-      await tx.userMeta.createMany({
-        data: metas.map((m) => ({
-          userId: user.id,
-          key: m.key,
-          value: m.value,
-        })),
-      });
-
-      return user;
-    });
-  }
-
-  /**
-   * ACTUALIZAR USUARIO Y METADATOS
-   */
-  // src/modules/users/user.service.ts
-
-  async update(id: number, data: UpdateUserInput) {
-    // Extraemos phone para manejarlo en UserMeta, el resto va a User
-    const { phone, email, displayName, url, nicename } = data;
-
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Actualizar la tabla principal wp_users
-      // Solo incluimos los campos que no son undefined
-      const user = await tx.user.update({
-        where: { id },
-        data: {
-          ...(email && { email }),
-          ...(displayName && { displayName }),
-          ...(url && { url }),
-          ...(nicename && { nicename }),
-        },
-        include: { usermeta: true },
-      });
-
-      // 2. Si viene el teléfono, manejar wp_usermeta (billing_phone)
-      if (phone) {
-        const metaKey = 'billing_phone';
-        const existingMeta = await tx.userMeta.findFirst({
-          where: { userId: id, key: metaKey },
+      if (meta) {
+        await this.prisma.userMeta.update({
+          where: { umeta_id: meta.umeta_id },
+          data: { value: input.phone },
         });
-
-        if (existingMeta) {
-          await tx.userMeta.update({
-            where: { umeta_id: existingMeta.umeta_id },
-            data: { value: phone },
-          });
-        } else {
-          await tx.userMeta.create({
-            data: {
-              userId: id,
-              key: metaKey,
-              value: phone,
-            },
-          });
-        }
+      } else {
+        await this.prisma.userMeta.create({
+          data: { userId: id, key: 'billing_phone', value: input.phone },
+        });
       }
-
-      return user;
-    });
-  }
-
-  async changeRole(userId: number, role: Role) {
-    await this.findOne(userId);
-    const roleKey = role.toLowerCase();
-    const serializedValue = `a:1:{s:${roleKey.length}:"${roleKey}";b:1;}`;
-
-    const existingMeta = await this.prisma.userMeta.findFirst({
-      where: { userId, key: 'wp_capabilities' },
-    });
-
-    if (existingMeta) {
-      return this.prisma.userMeta.update({
-        where: { umeta_id: existingMeta.umeta_id },
-        data: { value: serializedValue },
-      });
-    } else {
-      return this.prisma.userMeta.create({
-        data: { userId, key: 'wp_capabilities', value: serializedValue },
-      });
     }
-  }
 
-  // --- MÉTODOS DE VERIFICACIÓN ---
+    // Actualizamos campos base del usuario si vienen en el input
+    const updateData: any = {};
+    if (input.email) updateData.email = input.email;
+    if (input.displayName) updateData.displayName = input.displayName;
 
-  async createEmailVerification(email: string, code: string) {
-    return this.prisma.emailVerification.upsert({
-      where: { email },
-      update: { code, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
-      create: { email, code, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data: updateData,
+      include: { usermeta: true },
     });
-  }
 
-  async validateEmailCode(email: string, code: string) {
-    const record = await this.prisma.emailVerification.findUnique({
-      where: { email },
-    });
-    if (!record || record.code !== code) throw new GraphQLError('INVALID CODE');
-    if (record.expiresAt < new Date()) throw new GraphQLError('CODE EXPIRED');
-    await this.prisma.emailVerification.delete({ where: { email } });
-    return true;
+    return this.mapUserRole(updatedUser);
   }
 
   async findByEmail(email: string) {
-    return this.prisma.user.findUnique({ where: { email } });
-  }
-
-  async remove(id: number) {
-    await this.findOne(id);
-    return this.prisma.user.delete({ where: { id } });
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { usermeta: true },
+    });
+    if (user) return this.mapUserRole(user);
+    return null;
   }
 }

@@ -1,160 +1,123 @@
 import {
   Injectable,
-  ConflictException,
+  BadRequestException,
   NotFoundException,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { WordpressService } from '../wordpress/wordpress.service';
 import {
   CreateProviderInput,
   UpdateProviderInput,
-  UpdateBankInput,
 } from 'src/graphql/entities/provider.entity';
-import slugify from 'slugify';
 
 @Injectable()
-export class ProviderService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly wpService: WordpressService,
-  ) {}
+export class ProvidersService {
+  constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Crea un proveedor, su categoría en WooCommerce y su cuenta bancaria inicial
-   */
-  async create(userId: number, data: CreateProviderInput) {
-    // 1. Validar si el usuario ya es proveedor
-    const exists = await this.prisma.provider.findUnique({
+  // Generador simple de slugs
+  private generateSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  async create(userId: number, input: CreateProviderInput) {
+    // 1. Verificar si el usuario ya es proveedor
+    const existing = await this.prisma.provider.findUnique({
       where: { userId },
     });
-    if (exists) {
-      throw new ConflictException('El usuario ya tiene un perfil de proveedor');
+    if (existing) {
+      throw new BadRequestException(
+        'El usuario ya tiene un perfil de proveedor',
+      );
     }
 
-    // 2. Crear categoría en WordPress para agrupar sus servicios
-    let wpCategoryId: number | undefined;
-    try {
-      const wpCategory = await this.wpService.createCategory({
-        name: data.name,
-        description: `Servicios de ${data.name}`,
-        image: data.logoUrl ? { src: data.logoUrl } : undefined,
-      });
-      wpCategoryId = wpCategory.id;
-    } catch (error) {
-      // Logeamos pero permitimos continuar o fallar según prefieras
-      console.error('Error creando categoría en WP:', error);
+    // 2. Generar slug único (añadir sufijo si existe)
+    let slug = this.generateSlug(input.name);
+    const slugExists = await this.prisma.provider.findUnique({
+      where: { slug },
+    });
+    if (slugExists) {
+      slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
     }
 
-    // 3. Crear el proveedor y su cuenta bancaria vacía en una transacción
-    const slug = slugify(data.name, { lower: true, strict: true });
-
+    // 3. Crear Proveedor y Cuenta Bancaria (si viene en el input)
     return this.prisma.provider.create({
       data: {
-        name: data.name,
-        location: data.location,
-        logoUrl: data.logoUrl,
-        bio: data.bio,
-        phone: data.phone,
-        slug: slug,
-        userId: userId,
-        wcCategoryId: wpCategoryId,
-        bank: {
-          create: {
-            bankName: '',
-            accountNumber: '',
-            accountType: '',
+        userId,
+        name: input.name,
+        slug,
+        location: input.location,
+        logoUrl: input.logoUrl,
+        bio: input.bio,
+        phone: input.phone,
+        // Conexión anidada para crear la cuenta bancaria en la misma transacción
+        ...(input.bank && {
+          bank: {
+            create: {
+              ...input.bank,
+            },
           },
-        },
+        }),
       },
       include: { bank: true },
     });
   }
 
-  /**
-   * Actualiza los datos del perfil del proveedor
-   */
-  async update(id: number, data: UpdateProviderInput) {
-    const provider = await this.prisma.provider.findUnique({ where: { id } });
-    if (!provider) throw new NotFoundException('Proveedor no encontrado');
+  async update(userId: number, input: UpdateProviderInput) {
+    // 1. Validar propiedad
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: input.id },
+    });
 
+    if (!provider) throw new NotFoundException('Proveedor no encontrado');
+    if (provider.userId !== userId) {
+      throw new BadRequestException(
+        'No tienes permiso para editar este perfil',
+      );
+    }
+
+    // 2. Actualizar (Upsert para el banco: crea si no existe, actualiza si existe)
     return this.prisma.provider.update({
-      where: { id },
+      where: { id: input.id },
       data: {
-        name: data.name,
-        location: data.location,
-        bio: data.bio,
-        logoUrl: data.logoUrl,
-        // Si cambia el nombre, podrías querer actualizar el slug aquí también
+        name: input.name,
+        location: input.location,
+        logoUrl: input.logoUrl,
+        bio: input.bio,
+        phone: input.phone,
+        ...(input.bank && {
+          bank: {
+            upsert: {
+              create: { ...input.bank },
+              update: { ...input.bank },
+            },
+          },
+        }),
       },
+      include: { bank: true },
     });
   }
 
-  /**
-   * Actualiza o crea la información bancaria (Upsert)
-   */
-  async updateBank(providerId: number, data: UpdateBankInput) {
-    return this.prisma.bankAccount.upsert({
-      where: { providerId },
-      update: {
-        bankName: data.bankName,
-        accountNumber: data.accountNumber,
-        accountType: data.accountType,
-        rut: data.rut,
-        email: data.email,
-      },
-      create: {
-        providerId,
-        bankName: data.bankName,
-        accountNumber: data.accountNumber,
-        accountType: data.accountType,
-        rut: data.rut,
-        email: data.email,
-      },
-    });
-  }
-
-  /**
-   * Obtener proveedor por su ID interno
-   */
-  async findById(id: number) {
-    const provider = await this.prisma.provider.findUnique({
+  async findOne(id: number) {
+    return this.prisma.provider.findUnique({
       where: { id },
-      include: {
-        user: true,
-        bank: true,
-      },
+      include: { bank: true },
     });
-    if (!provider) throw new NotFoundException('Proveedor no encontrado');
-    return provider;
   }
 
-  /**
-   * Obtener proveedor por el ID del usuario de WordPress
-   */
-  async findByUser(userId: number) {
-    const provider = await this.prisma.provider.findUnique({
+  async findByUserId(userId: number) {
+    return this.prisma.provider.findUnique({
       where: { userId },
-      include: {
-        user: true,
-        bank: true,
-      },
+      include: { bank: true },
     });
-    if (!provider)
-      throw new NotFoundException('Perfil de proveedor no encontrado');
-    return provider;
   }
 
-  /**
-   * Listar todos los proveedores
-   */
-  async list() {
+  async findAll() {
     return this.prisma.provider.findMany({
-      include: {
-        user: true,
-        bank: true,
-      },
-      orderBy: { createdAt: 'desc' },
+      include: { bank: true },
     });
   }
 }

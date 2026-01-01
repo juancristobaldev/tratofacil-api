@@ -1,135 +1,121 @@
-import { Resolver, Mutation, Args, Context } from '@nestjs/graphql';
-import { PrismaService } from 'src/prisma/prisma.service';
 import {
-  BankAccount,
-  Provider,
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { UserService } from '../users/users.service'; // Necesario para guardar el teléfono en usermeta
+import {
+  ProviderRegistrationInput,
   UpdateBankInput,
-  UpdateProviderInput,
-} from 'src/graphql/entities/provider.entity';
-import { ProviderService } from './providers.service';
-import { GraphQLError } from 'graphql';
-import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException } from '@nestjs/common';
-import { ProviderRegistrationInput } from 'src/graphql/entities/register-provider';
+} from 'src/graphql/entities/register-provider';
+import { UpdateProviderInput } from 'src/graphql/entities/provider.entity';
 
-@Resolver()
-export class ProvidersResolver {
+@Injectable()
+export class ProvidersService {
   constructor(
-    private readonly providerService: ProviderService,
     private readonly prisma: PrismaService,
-    private readonly jwt: JwtService,
+    private readonly userService: UserService,
   ) {}
 
-  @Mutation(() => Provider)
-  async registerProvider(
-    @Args('input') input: ProviderRegistrationInput,
-    @Context() context: any,
-  ) {
-    // 1. Obtener y verificar el Token (Coherencia con ID Int)
-    const authHeader = context.req.headers['authorization'] || '';
-    const token = authHeader.replace('Bearer ', '');
+  // Generador de slug auxiliar
+  private generateSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-');
+  }
 
-    if (!token) throw new UnauthorizedException('No se proporcionó token');
+  // Lógica de Registro Complejo (Identity + Provider + Bank)
+  async register(userId: number, input: ProviderRegistrationInput) {
+    const { identity, bank } = input;
 
-    let payload: any;
-    try {
-      payload = this.jwt.verify(token, {
-        secret: process.env.JWT_SECRET || 'default_secret',
-      });
-    } catch (err) {
-      throw new UnauthorizedException('Token inválido o expirado');
-    }
+    // 1. Actualizar teléfono del usuario (Va a wp_usermeta, no a wp_users)
+    await this.userService.updateProfile(userId, {
+      id: userId,
+      phone: identity.phone,
+      // Opcional: Podrías actualizar el displayName aquí también
+      displayName: `${identity.firstName} ${identity.lastName}`,
+    });
 
-    const userId = Number(payload.sub); // Convertir a Number para Prisma (Int)
-    const { identity, bank, services } = input;
+    // 2. Verificar si ya existe proveedor
+    const existing = await this.prisma.provider.findUnique({
+      where: { userId },
+    });
+    if (existing) throw new BadRequestException('El usuario ya es proveedor');
 
-    // 2. Transacción atómica para coherencia de datos
-    return this.prisma.$transaction(async (tx) => {
-      // A. Actualizar metadatos en wp_usermeta (Coherencia WordPress)
-      await tx.userMeta.upsert({
-        where: {
-          // Buscamos si ya existe el meta del teléfono para este usuario
-          id:
-            (
-              await tx.userMeta.findFirst({
-                where: { userId, key: 'billing_phone' },
-              })
-            )?.id || 0,
-        },
-        update: { value: identity.phone },
-        create: {
-          userId,
-          key: 'billing_phone',
-          value: identity.phone,
-        },
-      });
+    // 3. Crear Proveedor y Banco en transacción
+    const fullName = `${identity.firstName} ${identity.lastName}`;
+    let slug = this.generateSlug(fullName);
 
-      // B. Crear el Proveedor usando el ProviderService refactorizado
-      // Se conecta a los servicios (wp_terms) mediante sus IDs o slugs
-      const provider = await tx.provider.create({
-        data: {
-          userId: userId,
-          name:
-            input.providerName || `${identity.firstName} ${identity.lastName}`,
-          location: 'Chile',
-          // Vinculamos las categorías (Services en Prisma)
-          services: {
-            connect: services.categories.map((slug) => ({ slug })),
+    // Pequeña validación de slug único
+    const slugCheck = await this.prisma.provider.findUnique({
+      where: { slug },
+    });
+    if (slugCheck) slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
+
+    return this.prisma.provider.create({
+      data: {
+        userId,
+        name: fullName,
+        slug,
+        location: 'Chile', // Default según tu código anterior
+        phone: identity.phone, // Guardamos teléfono también en Provider si lo deseas
+        bank: {
+          create: {
+            bankName: bank.bankName,
+            accountNumber: bank.accountNumber,
+            accountType: bank.accountType,
           },
         },
-      });
-
-      // C. Crear datos bancarios (App Table)
-      await tx.bankAccount.create({
-        data: {
-          providerId: provider.id,
-          bankName: bank.bankName,
-          accountNumber: bank.accountNumber,
-          accountType: bank.accountType,
-        },
-      });
-
-      // Retornar con relaciones para cumplir con la Entity
-      return tx.provider.findUnique({
-        where: { id: provider.id },
-        include: { bank: true, services: true, user: true },
-      });
+      },
+      include: { bank: true },
     });
   }
 
-  @Mutation(() => Provider)
-  async updateProvider(
-    @Args('updateProviderInput') input: UpdateProviderInput,
-  ): Promise<Provider> {
-    const providerId = Number(input.providerId);
-
-    const provider = await this.prisma.provider.update({
-      where: { id: providerId },
+  // Actualizar solo datos del Proveedor
+  async updateProviderData(input: UpdateProviderInput) {
+    return this.prisma.provider.update({
+      where: { id: input.id },
       data: {
         name: input.name,
         location: input.location,
         logoUrl: input.logoUrl,
+        bio: input.bio,
       },
-      include: { bank: true, services: true, user: true },
+      include: { bank: true },
     });
-
-    // Coherencia con la Entity: Aseguramos que los null sean compatibles
-    return provider as unknown as Provider;
   }
 
-  @Mutation(() => BankAccount)
-  async updateBank(
-    @Args('updateBankInput') input: UpdateBankInput,
-  ): Promise<BankAccount> {
-    const bankId = Number(input.bankId);
-
+  // Actualizar solo Banco
+  async updateBankData(input: UpdateBankInput) {
     return this.prisma.bankAccount.update({
-      where: { id: bankId },
+      where: { id: input.bankId },
       data: {
         bankName: input.bankName,
         accountNumber: input.accountNumber,
         accountType: input.accountType,
       },
+    });
+  }
+
+  // Utilidad para queries
+  async findByUserId(userId: number) {
+    return this.prisma.provider.findUnique({
+      where: { userId },
+      include: { bank: true },
+    });
+  }
+
+  async findAll() {
+    return this.prisma.provider.findMany({ include: { bank: true } });
+  }
+
+  async findOne(id: number) {
+    return this.prisma.provider.findUnique({
+      where: { id },
+      include: { bank: true },
     });
   }
 }

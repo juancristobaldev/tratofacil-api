@@ -1,71 +1,59 @@
-import { InputType, Field } from '@nestjs/graphql';
-import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
-
-@InputType()
-export class CredentialsInput {
-  @Field()
-  @IsEmail()
-  email: string;
-
-  @Field()
-  @MinLength(6)
-  password: string;
-}
+import { InputType, Field, Int } from '@nestjs/graphql';
+import { IsNotEmpty, IsString, IsOptional } from 'class-validator';
 
 @InputType()
 export class IdentityInput {
   @Field()
   @IsNotEmpty()
-  firstName: string; // Se guardará en UserMeta como 'first_name'
+  firstName: string;
 
   @Field()
   @IsNotEmpty()
-  lastName: string; // Se guardará en UserMeta como 'last_name'
+  lastName: string;
 
   @Field()
   @IsNotEmpty()
-  rut: string; // Se guardará en UserMeta como 'rut'
-
-  @Field()
-  @IsNotEmpty()
-  phone: string; // Se guardará en UserMeta como 'billing_phone'
+  phone: string;
 }
 
 @InputType()
-export class BankInput {
+export class BankRegistrationInput {
   @Field()
-  @IsNotEmpty()
+  @IsString()
   bankName: string;
 
   @Field()
-  @IsNotEmpty()
+  @IsString()
   accountNumber: string;
 
   @Field()
-  @IsNotEmpty()
+  @IsString()
   accountType: string;
 }
 
 @InputType()
-export class ServicesInput {
-  @Field(() => [String])
-  categories: string[]; // Slugs de los 'Service' (wp_terms) que ofrece
-}
-
-@InputType()
 export class ProviderRegistrationInput {
-  @Field(() => CredentialsInput)
-  credentials: CredentialsInput;
-
   @Field(() => IdentityInput)
   identity: IdentityInput;
 
-  @Field(() => BankInput)
-  bank: BankInput;
+  @Field(() => BankRegistrationInput)
+  bank: BankRegistrationInput;
+}
 
-  @Field(() => ServicesInput)
-  services: ServicesInput;
+@InputType()
+export class UpdateBankInput {
+  @Field(() => Int)
+  bankId: number;
 
   @Field({ nullable: true })
-  providerName?: string; // Nombre comercial del proveedor
+  @IsOptional()
+  bankName?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  accountNumber?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  accountType?: string;
 }

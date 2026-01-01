@@ -1,20 +1,21 @@
-import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
+import {
+  ObjectType,
+  Field,
+  Int,
+  InputType,
+  registerEnumType,
+} from '@nestjs/graphql';
 import {
   IsEmail,
   IsNotEmpty,
   IsString,
   MinLength,
-  IsOptional,
   IsEnum,
-  IsUrl,
-  IsInt,
+  IsOptional,
 } from 'class-validator';
+import { Provider } from './provider.entity';
 import { Role } from '../enums/role.enum';
-import { Provider } from './provider.entity'; // Se asume que existe
 
-// =========================================================
-// 1. ENTIDAD USERMETA (Mapeo wp_usermeta)
-// =========================================================
 @ObjectType()
 export class UserMeta {
   @Field(() => Int)
@@ -26,73 +27,71 @@ export class UserMeta {
   @Field()
   key: string;
 
+  // CORRECCIÓN: Añadimos '| null' para que acepte el valor de Prisma
   @Field({ nullable: true })
-  value?: string;
+  value?: string | null;
 }
 
-// =========================================================
-// 2. ENTIDAD USER (Mapeo wp_users)
-// =========================================================
 @ObjectType()
 export class User {
   @Field(() => Int)
   id: number;
 
   @Field()
-  username: string; // user_login
+  username: string;
 
   @Field()
-  email: string; // user_email
+  email: string;
 
   @Field()
-  nicename: string; // user_nicename
-
-  @Field({ nullable: true })
-  displayName: string; // display_name
+  displayName: string;
 
   @Field()
-  url: string; // user_url
+  nicename: string;
 
   @Field()
-  registered: Date; // user_registered
+  url: string;
 
   @Field(() => Int)
-  status: number; // user_status
+  status: number;
 
-  // Campo calculado: Se extrae de wp_usermeta (wp_capabilities)
+  @Field()
+  registered: Date;
+
+  @Field()
+  activationKey: string;
+
   @Field(() => Role, { nullable: true })
   role?: Role;
 
-  // Relaciones
   @Field(() => [UserMeta], { nullable: 'itemsAndList' })
   usermeta?: UserMeta[];
 
   @Field(() => Provider, { nullable: true })
-  provider?: Provider;
+  provider?: Provider | null; // CORRECCIÓN: Provider también puede venir null
 }
 
-// =========================================================
-// 3. INPUT: REGISTRO
-// =========================================================
+// --- INPUTS ---
+
 @InputType()
 export class RegisterInput {
   @Field()
-  @IsEmail({}, { message: 'Email inválido' })
+  @IsEmail()
   email: string;
 
   @Field()
   @IsNotEmpty()
-  @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
+  @MinLength(8)
   password: string;
 
   @Field({ nullable: true })
-  @IsOptional()
   @IsString()
+  @IsOptional()
   username?: string;
 
   @Field({ nullable: true })
-  @IsOptional()
   @IsString()
+  @IsOptional()
   displayName?: string;
 
   @Field(() => Role, { defaultValue: Role.CLIENT })
@@ -100,32 +99,14 @@ export class RegisterInput {
   role: Role;
 
   @Field({ nullable: true })
-  @IsOptional()
   @IsString()
-  phone?: string; // Se guardará en usermeta (billing_phone)
+  @IsOptional()
+  phone?: string;
 }
 
-// =========================================================
-// 4. INPUT: LOGIN
-// =========================================================
-@InputType()
-export class LoginInput {
-  @Field()
-  @IsEmail()
-  email: string;
-
-  @Field()
-  @IsNotEmpty()
-  password: string;
-}
-
-// =========================================================
-// 5. INPUT: ACTUALIZACIÓN DE PERFIL
-// =========================================================
 @InputType()
 export class UpdateUserInput {
   @Field(() => Int)
-  @IsInt()
   id: number;
 
   @Field({ nullable: true })
@@ -138,18 +119,8 @@ export class UpdateUserInput {
   @IsString()
   displayName?: string;
 
-  @Field({ nullable: true }) // Agregado para resolver el error del Service
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
   phone?: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsUrl()
-  url?: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsString()
-  nicename?: string;
 }

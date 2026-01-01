@@ -1,19 +1,17 @@
 import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
 import {
-  IsNotEmpty,
   IsString,
   IsOptional,
-  IsUrl,
-  IsInt,
-  IsEmail,
-  Length,
+  IsNotEmpty,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { User } from './user.entity';
-import { Service } from './service.entity';
 
 // =========================================================
-// 1. ENTIDAD BANK ACCOUNT (Mapeo BankAccount)
+// OUTPUTS
 // =========================================================
+
 @ObjectType()
 export class BankAccount {
   @Field(() => Int)
@@ -28,19 +26,14 @@ export class BankAccount {
   @Field()
   accountType: string;
 
+  // CORRECCIÓN AQUÍ: Agregamos '| null' para aceptar el valor de Prisma
   @Field({ nullable: true })
-  rut?: string;
+  rut?: string | null;
 
   @Field({ nullable: true })
-  email?: string;
-
-  @Field(() => Int)
-  providerId: number;
+  email?: string | null;
 }
 
-// =========================================================
-// 2. ENTIDAD PROVIDER (Mapeo Provider)
-// =========================================================
 @ObjectType()
 export class Provider {
   @Field(() => Int)
@@ -50,7 +43,7 @@ export class Provider {
   userId: number;
 
   @Field(() => Int, { nullable: true })
-  wcCategoryId?: number; // ID de la categoría espejo en WooCommerce
+  wcCategoryId?: number | null;
 
   @Field()
   name: string;
@@ -59,25 +52,22 @@ export class Provider {
   slug: string;
 
   @Field({ nullable: true })
-  location?: string;
+  location?: string | null;
 
   @Field({ nullable: true })
-  logoUrl?: string;
+  logoUrl?: string | null;
 
   @Field({ nullable: true })
-  bio?: string;
+  bio?: string | null;
 
   @Field({ nullable: true })
-  phone?: string;
+  phone?: string | null;
 
   @Field(() => BankAccount, { nullable: true })
-  bank?: BankAccount;
+  bank?: BankAccount | null;
 
   @Field(() => User)
-  user: User;
-
-  @Field(() => [Service], { nullable: 'itemsAndList' })
-  services?: Service[];
+  user?: User;
 
   @Field()
   createdAt: Date;
@@ -87,52 +77,43 @@ export class Provider {
 }
 
 // =========================================================
-// 3. INPUT: CREAR PROVEEDOR
+// INPUTS (Sin cambios)
 // =========================================================
+
+@InputType()
+export class BankAccountInput {
+  @Field()
+  @IsNotEmpty()
+  @IsString()
+  bankName: string;
+
+  @Field()
+  @IsNotEmpty()
+  @IsString()
+  accountNumber: string;
+
+  @Field()
+  @IsNotEmpty()
+  @IsString()
+  accountType: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  rut?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  email?: string;
+}
+
 @InputType()
 export class CreateProviderInput {
   @Field()
-  @IsNotEmpty({ message: 'El nombre es obligatorio' })
+  @IsNotEmpty()
   @IsString()
   name: string;
-
-  @Field()
-  @IsNotEmpty({ message: 'La ubicación es obligatoria' })
-  @IsString()
-  location: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsUrl({}, { message: 'El logo debe ser una URL válida' })
-  logoUrl?: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsString()
-  bio?: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsString()
-  @Length(9, 15)
-  phone?: string;
-
-  // El userId se obtiene del contexto (usuario autenticado)
-}
-
-// =========================================================
-// 4. INPUT: ACTUALIZAR PROVEEDOR
-// =========================================================
-@InputType()
-export class UpdateProviderInput {
-  @Field(() => Int)
-  @IsInt()
-  id: number;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsString()
-  name?: string;
 
   @Field({ nullable: true })
   @IsOptional()
@@ -142,36 +123,27 @@ export class UpdateProviderInput {
   @Field({ nullable: true })
   @IsOptional()
   @IsString()
+  logoUrl?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   bio?: string;
 
   @Field({ nullable: true })
   @IsOptional()
-  logoUrl?: string;
+  @IsString()
+  phone?: string;
+
+  @Field(() => BankAccountInput, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BankAccountInput)
+  bank?: BankAccountInput;
 }
 
-// =========================================================
-// 5. INPUT: GESTIONAR CUENTA BANCARIA
-// =========================================================
 @InputType()
-export class UpdateBankInput {
-  @Field()
-  @IsNotEmpty()
-  bankName: string;
-
-  @Field()
-  @IsNotEmpty()
-  accountNumber: string;
-
-  @Field()
-  @IsNotEmpty()
-  accountType: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  rut?: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
+export class UpdateProviderInput extends CreateProviderInput {
+  @Field(() => Int)
+  id: number;
 }
