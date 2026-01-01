@@ -1,6 +1,6 @@
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { NotFoundException, UseGuards } from '@nestjs/common';
-import { ServicesService } from 'src/modules/services/services.service';
+import { ServicesService } from './services.service'; // Ruta relativa sugerida: ./services.service
 import {
   CreateServiceInput,
   Service,
@@ -9,9 +9,9 @@ import {
 } from 'src/graphql/entities/service.entity';
 
 import { Roles } from 'src/auth/decorators/roles.decorator';
-import { Role } from '@prisma/client';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { Role } from 'src/graphql/enums/role.enum';
 
 @Resolver(() => Service)
 export class ServicesResolver {
@@ -25,11 +25,9 @@ export class ServicesResolver {
   }
 
   @Query(() => Service, { name: 'service' })
-  async findOne(
-    // Cambiado a Int para coincidir con el schema.prisma
-    @Args('id', { type: () => Int }) id: number,
-  ) {
-    return this.servicesService.findOne(id.toString());
+  async findOne(@Args('id', { type: () => Int }) id: number) {
+    // El servicio ahora acepta number directamente y maneja el BigInt internamente
+    return this.servicesService.findOne(id);
   }
 
   @Query(() => [Service], { name: 'servicesByCategory' })
@@ -43,31 +41,17 @@ export class ServicesResolver {
     @Args('providerId', { type: () => Int }) providerId: number,
   ): Promise<ServiceDetail> {
     const service = await this.servicesService.findServiceDetail(
-      serviceId.toString(),
-      providerId.toString(),
+      serviceId,
+      providerId,
     );
 
     if (!service) {
-      throw new NotFoundException('Servicio no disponible para este proveedor');
+      throw new NotFoundException('Servicio no disponible');
     }
 
-    // Mapeo limpio respetando la nulabilidad de la base de datos
-    return {
-      id: service.id,
-      name: service.name,
-      description: service.description || '',
-      price: service.price ?? 0,
-      commission: service.commission ?? 0,
-      netAmount: service.netAmount ?? 0,
-      hasHomeVisit: service.hasHomeVisit,
-      provider: {
-        ...service.provider,
-        logoUrl: service.provider.logoUrl ?? undefined,
-        location: service.provider.location ?? undefined,
-        createdAt: service.provider.createdAt ?? undefined,
-        updatedAt: service.provider.updatedAt ?? undefined,
-      },
-    };
+    // El servicio ya devuelve la estructura correcta con el Provider incluido
+    // Gracias a la lógica en findServiceDetail
+    return service;
   }
 
   // -------------------- MUTATIONS --------------------
@@ -76,7 +60,6 @@ export class ServicesResolver {
   @Roles(Role.PROVIDER, Role.ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async createService(@Args('input') input: CreateServiceInput) {
-    // El input ya debe contener categoryId y providerId como Strings o Ints según tu DTO
     return this.servicesService.create(input);
   }
 
@@ -84,14 +67,14 @@ export class ServicesResolver {
   @Roles(Role.PROVIDER, Role.ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async updateService(@Args('input') input: UpdateServiceInput) {
-    // Usamos el ID del input, asegurando consistencia
-    return this.servicesService.update(input.id.toString(), input);
+    // input.id es Int, el servicio espera number. Todo correcto.
+    return this.servicesService.update(input.id, input);
   }
 
   @Mutation(() => Service)
   @Roles(Role.PROVIDER, Role.ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async removeService(@Args('id', { type: () => Int }) id: number) {
-    return this.servicesService.remove(id.toString());
+    return this.servicesService.remove(id);
   }
 }

@@ -1,4 +1,11 @@
-import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
+import {
+  ObjectType,
+  Field,
+  Int,
+  Float,
+  InputType,
+  registerEnumType,
+} from '@nestjs/graphql';
 import {
   IsNotEmpty,
   IsInt,
@@ -94,16 +101,15 @@ export class OrderItemInput {
   quantity: number;
 }
 
+registerEnumType(PaymentProvider, { name: 'PaymentProvider' });
+
 @InputType()
 export class CreateOrderInput {
-  @Field(() => [OrderItemInput])
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => OrderItemInput)
-  items: OrderItemInput[];
+  @Field(() => Int) // O String si lo parseas en el servicio, pero Int es mejor si el ID es numérico
+  productId: number;
 
-  // El total se calcula en el Backend por seguridad, pero podrías
-  // enviarlo para validación cruzada.
+  @Field(() => PaymentProvider)
+  paymentProvider: PaymentProvider;
 }
 
 // =========================================================

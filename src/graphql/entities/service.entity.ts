@@ -1,111 +1,48 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
+import { Provider } from './provider.entity'; // Asegúrate de tener esto
 import {
-  IsNotEmpty,
   IsString,
+  IsNotEmpty,
   IsOptional,
   IsNumber,
-  IsBoolean,
   IsInt,
-  Min,
 } from 'class-validator';
-import { Provider } from './provider.entity';
 
-// =========================================================
-// 1. ENTIDAD CATEGORY (Mapeo WpTerm + WpTermTaxonomy)
-// =========================================================
-@ObjectType()
-export class Category {
-  @Field(() => Int)
-  id: number; // Mapeado desde term_id (BigInt)
-
-  @Field()
-  name: string;
-
-  @Field()
-  slug: string;
-
-  @Field({ nullable: true })
-  description?: string;
-
-  @Field(() => Int, { nullable: true })
-  parentId?: number; // Mapeado desde WpTermTaxonomy.parent
-
-  @Field(() => Int)
-  count: number; // Cantidad de productos en esta categoría
-}
-
-// =========================================================
-// 2. ENTIDAD SERVICE (Mapeo WpPost + WpPostMeta)
-// =========================================================
 @ObjectType()
 export class Service {
   @Field(() => Int)
-  id: number; // Mapeado desde ID (BigInt)
+  id: number; // ID de wp_posts
 
   @Field()
   name: string; // post_title
 
-  @Field({ nullable: true })
-  description?: string; // post_content
-
   @Field()
   slug: string; // post_name
 
-  @Field(() => Float, { nullable: true })
-  price?: number; // De WpPostMeta (_regular_price)
+  @Field({ nullable: true })
+  description?: string; // post_content
 
   @Field(() => Float, { nullable: true })
-  commission?: number; // Calculado (precio * 0.10)
+  price?: number; // Desde wp_postmeta (_price)
 
   @Field(() => Float, { nullable: true })
-  netAmount?: number; // Calculado (precio - comisión)
+  commission?: number; // Calculado o desde meta
+
+  @Field(() => Float, { nullable: true })
+  netAmount?: number; // Calculado
 
   @Field(() => Boolean)
-  hasHomeVisit: boolean; // De WpPostMeta (meta_key personalizada)
-
-  @Field()
-  status: string; // post_status (publish, draft)
-
-  // Relaciones
-  @Field(() => Provider, { nullable: true })
-  provider?: Provider;
-
-  @Field(() => Category, { nullable: true })
-  category?: Category;
-
-  @Field()
-  createdAt: Date; // post_date
+  hasHomeVisit: boolean; // Desde meta
 }
 
-// =========================================================
-// 3. INPUT: CREAR CATEGORÍA (Rubro)
-// =========================================================
-@InputType()
-export class CreateCategoryInput {
-  @Field()
-  @IsNotEmpty()
-  @IsString()
-  name: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsString()
-  slug?: string;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @Field(() => Int, { nullable: true })
-  @IsOptional()
-  @IsInt()
-  parentId?: number;
+@ObjectType()
+export class ServiceDetail extends Service {
+  @Field(() => Provider)
+  provider: Provider;
 }
 
-// =========================================================
-// 4. INPUT: CREAR SERVICIO (Producto WooCommerce)
-// =========================================================
+// --- INPUTS ---
+
 @InputType()
 export class CreateServiceInput {
   @Field()
@@ -120,25 +57,14 @@ export class CreateServiceInput {
 
   @Field(() => Float)
   @IsNumber()
-  @Min(0)
   price: number;
 
-  @Field(() => Int)
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
   @IsInt()
-  categoryId: number; // ID de la categoría (WpTerm)
-
-  @Field(() => Int)
-  @IsInt()
-  providerId: number; // ID del Provider (tabla local)
-
-  @Field(() => Boolean, { defaultValue: false })
-  @IsBoolean()
-  hasHomeVisit: boolean;
+  categoryId?: number; // Para vincular con wp_terms
 }
 
-// =========================================================
-// 5. INPUT: ACTUALIZAR SERVICIO
-// =========================================================
 @InputType()
 export class UpdateServiceInput {
   @Field(() => Int)
@@ -159,9 +85,4 @@ export class UpdateServiceInput {
   @IsOptional()
   @IsNumber()
   price?: number;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsBoolean()
-  hasHomeVisit?: boolean;
 }
