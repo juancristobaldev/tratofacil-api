@@ -237,11 +237,12 @@ input UpdateUserInput {
 }
 
 type User {
-  createdAt: DateTime
+  createdAt: DateTime!
   displayName: String!
   email: String!
   id: Int!
   isEmailVerified: Boolean
+  provider: Provider
   role: Role
   updatedAt: DateTime
   usermeta: [UserMeta]
@@ -250,9 +251,9 @@ type User {
 
 type UserMeta {
   id: Int!
-  key: String!
+  key: String
   userId: Int!
-  value: String!
+  value: String
 }
 
 type WebpayResponse {

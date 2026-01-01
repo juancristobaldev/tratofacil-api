@@ -61,10 +61,10 @@ model User {
 
 /// Metadatos de usuarios (wp_usermeta)
 model UserMeta {
-  id     Int    @id @default(autoincrement()) @map("umeta_id")
-  userId Int    @map("user_id")
-  key    String @map("meta_key")
-  value  String @map("meta_value")
+  id     Int     @id @default(autoincrement()) @map("umeta_id")
+  userId Int     @map("user_id")
+  key    String? @map("meta_key") // Agregado '?' por seguridad
+  value  String? @map("meta_value") // Agregado '?' para evitar el error de datos NULL
 
   user User @relation(fields: [userId], references: [id])
 
@@ -152,12 +152,11 @@ model Product {
   @@map("wp_posts")
 }
 
-/// Metadatos de productos (wp_postmeta)
 model PostMeta {
-  id     Int    @id @default(autoincrement()) @map("meta_id")
-  postId Int    @map("post_id")
-  key    String @map("meta_key")
-  value  String @map("meta_value")
+  id     Int     @id @default(autoincrement()) @map("meta_id")
+  postId Int     @map("post_id")
+  key    String  @map("meta_key")
+  value  String? @map("meta_value") // <--- Agrega el '?' aquí
 
   product Product @relation(fields: [postId], references: [id])
 

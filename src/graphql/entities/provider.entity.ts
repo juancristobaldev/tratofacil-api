@@ -8,22 +8,22 @@ export class BankAccount {
   @Field(() => Int)
   id: number;
 
-  @Field(() => String)
+  @Field()
   bankName: string;
 
-  @Field(() => String)
+  @Field()
   accountNumber: string;
 
-  @Field(() => String)
+  @Field()
   accountType: string;
 
   @Field(() => Int)
   providerId: number;
 
-  @Field(() => Date, { nullable: true })
+  @Field(() => Date, { nullable: true }) // Tipo explícito Date
   createdAt: Date | null;
 
-  @Field(() => Date, { nullable: true })
+  @Field(() => Date, { nullable: true }) // Tipo explícito Date
   updatedAt: Date | null;
 }
 
@@ -32,32 +32,32 @@ export class Provider {
   @Field(() => Int)
   id: number;
 
-  @Field(() => String)
+  @Field()
   name: string;
 
-  @Field(() => String, { nullable: true })
-  location?: string;
+  @Field(() => String, { nullable: true }) // Tipo explícito String
+  location?: string | null;
 
-  @Field(() => String, { nullable: true })
-  logoUrl?: string;
+  @Field(() => String, { nullable: true }) // Tipo explícito String
+  logoUrl?: string | null;
 
   @Field(() => Int)
   userId: number;
 
   @Field(() => User, { nullable: true })
-  user?: User;
+  user?: User | null;
 
   @Field(() => BankAccount, { nullable: true })
-  bank?: BankAccount;
+  bank?: BankAccount | null;
 
   @Field(() => [Service], { nullable: 'itemsAndList' })
-  services?: Service[];
+  services?: Service[] | null;
 
-  @Field(() => Date, { nullable: true })
-  createdAt?: Date;
+  @Field(() => Date, { nullable: true }) // Tipo explícito Date
+  createdAt?: Date | null;
 
-  @Field(() => Date, { nullable: true })
-  updatedAt?: Date;
+  @Field(() => Date, { nullable: true }) // Tipo explícito Date
+  updatedAt?: Date | null;
 }
 
 @InputType()
@@ -65,17 +65,17 @@ export class UpdateProviderInput {
   @Field(() => Int)
   providerId: number;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
   name?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
   location?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   @IsString()
   logoUrl?: string;
@@ -86,15 +86,15 @@ export class UpdateBankInput {
   @Field(() => Int)
   bankId: number;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   bankName?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   accountNumber?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   accountType?: string;
 }

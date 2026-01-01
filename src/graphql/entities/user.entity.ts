@@ -6,6 +6,7 @@ import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
 import { Role } from '../enums/role.enum';
 // -------------------------------------------------------------------------
 import { IsEmail, IsOptional, IsString, IsInt } from 'class-validator';
+import { Provider } from './provider.entity';
 
 @ObjectType()
 export class UserMeta {
@@ -15,11 +16,11 @@ export class UserMeta {
   @Field(() => Int)
   userId: number;
 
-  @Field(() => String)
-  key: string;
+  @Field(() => String, { nullable: true }) // Tipo explícito String
+  key?: string | null;
 
-  @Field(() => String)
-  value: string;
+  @Field(() => String, { nullable: true }) // Tipo explícito String
+  value?: string | null;
 }
 
 @ObjectType()
@@ -27,32 +28,33 @@ export class User {
   @Field(() => Int)
   id: number;
 
-  @Field(() => String)
+  @Field()
   username: string;
 
-  @Field(() => String)
+  @Field()
   email: string;
 
-  @Field(() => String)
+  @Field()
   displayName: string;
 
-  // Ahora NestJS sabe que este 'Role' es el Enum registrado
   @Field(() => Role, { nullable: true })
-  role: Role | null;
+  role?: Role | null;
 
-  @Field(() => Boolean, { nullable: true })
-  isEmailVerified: boolean | null;
+  @Field(() => Boolean, { nullable: true }) // Tipo explícito Boolean
+  isEmailVerified?: boolean | null;
 
   @Field(() => [UserMeta], { nullable: 'itemsAndList' })
-  usermeta?: UserMeta[];
+  usermeta?: UserMeta[] | null;
 
-  @Field(() => Date, { nullable: true })
+  @Field(() => Provider, { nullable: true })
+  provider?: Provider | null;
+
+  @Field()
   createdAt: Date;
 
-  @Field(() => Date, { nullable: true })
-  updatedAt: Date | null;
+  @Field(() => Date, { nullable: true }) // Tipo explícito Date
+  updatedAt?: Date | null;
 }
-
 @InputType()
 export class RegisterInput {
   @Field(() => String)
