@@ -26,11 +26,12 @@ export class BankAccount {
   @Field()
   accountType: string;
 
-  // CORRECCIÓN AQUÍ: Agregamos '| null' para aceptar el valor de Prisma
-  @Field({ nullable: true })
+  // CORRECCIÓN: Se agrega () => String explícito
+  @Field(() => String, { nullable: true })
   rut?: string | null;
 
-  @Field({ nullable: true })
+  // CORRECCIÓN: Se agrega () => String explícito
+  @Field(() => String, { nullable: true })
   email?: string | null;
 }
 
@@ -51,22 +52,23 @@ export class Provider {
   @Field()
   slug: string;
 
-  @Field({ nullable: true })
+  // CORRECCIÓN: Agregamos () => String a todos los opcionales para evitar futuros errores
+  @Field(() => String, { nullable: true })
   location?: string | null;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   logoUrl?: string | null;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   bio?: string | null;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   phone?: string | null;
 
   @Field(() => BankAccount, { nullable: true })
   bank?: BankAccount | null;
 
-  @Field(() => User)
+  @Field(() => User, { nullable: true })
   user?: User;
 
   @Field()
@@ -77,7 +79,7 @@ export class Provider {
 }
 
 // =========================================================
-// INPUTS (Sin cambios)
+// INPUTS
 // =========================================================
 
 @InputType()
@@ -97,12 +99,13 @@ export class BankAccountInput {
   @IsString()
   accountType: string;
 
-  @Field({ nullable: true })
+  // CORRECCIÓN: También explícito en los Inputs por seguridad
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   rut?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   email?: string;
@@ -115,22 +118,22 @@ export class CreateProviderInput {
   @IsString()
   name: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   location?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   logoUrl?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   bio?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   phone?: string;

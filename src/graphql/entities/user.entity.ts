@@ -16,6 +16,8 @@ import {
 import { Provider } from './provider.entity';
 import { Role } from '../enums/role.enum';
 
+// Registrar el Enum para que GraphQL lo entienda
+
 @ObjectType()
 export class UserMeta {
   @Field(() => Int)
@@ -27,8 +29,8 @@ export class UserMeta {
   @Field()
   key: string;
 
-  // CORRECCIÓN: Añadimos '| null' para que acepte el valor de Prisma
-  @Field({ nullable: true })
+  // CORRECCIÓN AQUÍ: Agregamos () => String explícito
+  @Field(() => String, { nullable: true })
   value?: string | null;
 }
 
@@ -61,14 +63,16 @@ export class User {
   @Field()
   activationKey: string;
 
+  // CORRECCIÓN: Agregamos () => Role explícito
   @Field(() => Role, { nullable: true })
   role?: Role;
 
   @Field(() => [UserMeta], { nullable: 'itemsAndList' })
   usermeta?: UserMeta[];
 
+  // CORRECCIÓN: Agregamos () => Provider explícito
   @Field(() => Provider, { nullable: true })
-  provider?: Provider | null; // CORRECCIÓN: Provider también puede venir null
+  provider?: Provider | null;
 }
 
 // --- INPUTS ---
@@ -84,12 +88,13 @@ export class RegisterInput {
   @MinLength(8)
   password: string;
 
-  @Field({ nullable: true })
+  // CORRECCIÓN: Agregamos () => String explícito en opcionales
+  @Field(() => String, { nullable: true })
   @IsString()
   @IsOptional()
   username?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsString()
   @IsOptional()
   displayName?: string;
@@ -98,7 +103,7 @@ export class RegisterInput {
   @IsEnum(Role)
   role: Role;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsString()
   @IsOptional()
   phone?: string;
@@ -109,17 +114,17 @@ export class UpdateUserInput {
   @Field(() => Int)
   id: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsEmail()
   email?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   displayName?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   phone?: string;

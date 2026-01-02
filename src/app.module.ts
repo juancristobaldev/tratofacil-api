@@ -12,7 +12,6 @@ import { UsersModule } from './modules/users/users.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 import { ServicesModule } from './modules/services/services.module';
-import { OrderModule } from './modules/order/order.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ConfigModule } from '@nestjs/config';
 import { WordpressModule } from './modules/wordpress/wordpress.module';
@@ -23,7 +22,10 @@ import { WordpressModule } from './modules/wordpress/wordpress.module';
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
-      context: ({ req, res }: { req: Request; res: Response }) => ({ req, res }),
+      context: ({ req, res }: { req: Request; res: Response }) => ({
+        req,
+        res,
+      }),
       // no más playground, Apollo Studio lo reemplaza
       playground: false,
     }),
@@ -34,7 +36,6 @@ import { WordpressModule } from './modules/wordpress/wordpress.module';
     ProvidersModule,
     ServicesModule,
     CoreModule,
-    OrderModule,
     PaymentsModule,
     WordpressModule,
   ],

@@ -1,224 +1,198 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import {
-  CreateServiceInput,
-  UpdateServiceInput,
-} from 'src/graphql/entities/service.entity';
 
 @Injectable()
 export class ServicesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Helper para mapear WpPost -> Service Entity
-  private mapPostToService(post: any, priceMeta?: any) {
-    const price = priceMeta ? parseFloat(priceMeta.meta_value) : 0;
-    // Lógica de negocio simple (ejemplo: comisión del 10%)
-    const commission = price * 0.1;
-    const netAmount = price - commission;
+  /**
+   * Utilidad para manejar BigInt de Prisma (convertir a number/string seguro)
+   */
+  private toInt(value: bigint | number): number {
+    return Number(value);
+  }
+
+  /**
+   * Obtiene las subcategorías (Servicios) de una categoría padre,
+   * incluyendo los proveedores que tienen productos publicados en ellas.
+   */
+  async findByCategory(categorySlug: string) {
+    // 1. Buscar el término padre (Categoría Principal)
+    const parentTerm = await this.prisma.wpTerm.findFirst({
+      where: { slug: categorySlug },
+    });
+
+    if (!parentTerm) return [];
+
+    const parentTermId = parentTerm.term_id;
+
+    // 2. Buscar taxonomías hijas (Subcategorías -> Servicios)
+    const childTaxonomies = await this.prisma.wpTermTaxonomy.findMany({
+      where: {
+        parent: parentTermId,
+        taxonomy: 'product_cat',
+      },
+      include: {
+        term: true,
+      },
+    });
+
+    // 3. Procesar cada subcategoría para encontrar productos y proveedores
+    const services = await Promise.all(
+      childTaxonomies.map(async (tax) => {
+        // Buscar relaciones: IDs de productos en esta subcategoría
+        const relationships = await this.prisma.wpTermRelationship.findMany({
+          where: { term_taxonomy_id: tax.term_taxonomy_id },
+        });
+
+        const productIds = relationships.map((r) => r.object_id);
+
+        if (productIds.length === 0) {
+          return {
+            id: this.toInt(tax.term_id),
+            name: tax.term.name,
+            slug: tax.term.slug,
+            description: tax.description,
+            price: 0,
+            providers: [],
+            hasHomeVisit: false,
+          };
+        }
+
+        // Buscar los productos PUBLICADOS
+        const products = await this.prisma.wpPost.findMany({
+          where: {
+            ID: { in: productIds },
+            post_status: 'publish',
+            post_type: 'product',
+          },
+          include: {
+            postmeta: true,
+          },
+        });
+
+        // Agrupar proveedores y calcular precio mínimo ("Desde $...")
+        let minPrice = Infinity;
+        let hasHomeVisit = false;
+        const providersMap = new Map<number, any>();
+
+        for (const product of products) {
+          // -- Lógica de Precio --
+          const priceMeta = product.postmeta.find(
+            (m) => m.meta_key === '_price',
+          );
+
+          // CORRECCIÓN TS(2345): Aseguramos que pasamos un string o '0' si es null
+          const priceVal = priceMeta?.meta_value ?? '0';
+          const price = parseFloat(priceVal);
+
+          if (price > 0 && price < minPrice) {
+            minPrice = price;
+          }
+
+          // -- Lógica de Visita a Domicilio --
+          const homeVisitMeta = product.postmeta.find(
+            (m) => m.meta_key === 'has_home_visit',
+          );
+          if (homeVisitMeta?.meta_value === 'true') hasHomeVisit = true;
+
+          // -- Lógica de Proveedor (Autor) --
+          const userId = this.toInt(product.post_author);
+
+          if (userId && !providersMap.has(userId)) {
+            providersMap.set(userId, { price });
+          }
+        }
+
+        // CORRECCIÓN TS(7005): Inicializamos explícitamente con tipo
+        let providers: any[] = [];
+
+        if (providersMap.size > 0) {
+          const userIds = Array.from(providersMap.keys());
+
+          const dbProviders = await this.prisma.provider.findMany({
+            where: { userId: { in: userIds } },
+          });
+
+          providers = dbProviders.map((p) => ({
+            ...p,
+            price: providersMap.get(p.userId)?.price || 0,
+          }));
+        }
+
+        return {
+          id: this.toInt(tax.term_id),
+          name: tax.term.name,
+          slug: tax.term.slug,
+          description: tax.description,
+          price: minPrice === Infinity ? 0 : minPrice,
+          hasHomeVisit,
+          providers: providers,
+        };
+      }),
+    );
+
+    return services;
+  }
+
+  /**
+   * Detalle de un servicio específico (Producto) para un proveedor
+   */
+  async findServiceDetail(serviceId: string, providerId: string) {
+    const termId = parseInt(serviceId, 10);
+    const provId = parseInt(providerId, 10);
+
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: provId },
+      include: { user: true },
+    });
+
+    if (!provider) return null;
+
+    const taxonomy = await this.prisma.wpTermTaxonomy.findFirst({
+      where: { term_id: termId, taxonomy: 'product_cat' },
+    });
+    if (!taxonomy) return null;
+
+    const relations = await this.prisma.wpTermRelationship.findMany({
+      where: { term_taxonomy_id: taxonomy.term_taxonomy_id },
+    });
+    const postIds = relations.map((r) => r.object_id);
+
+    const product = await this.prisma.wpPost.findFirst({
+      where: {
+        ID: { in: postIds },
+        post_author: provider.user.id,
+        post_type: 'product',
+        post_status: 'publish',
+      },
+      include: { postmeta: true },
+    });
+
+    if (!product) return null;
+
+    const priceMeta = product.postmeta.find((m) => m.meta_key === '_price');
+    const homeVisitMeta = product.postmeta.find(
+      (m) => m.meta_key === 'has_home_visit',
+    );
+
+    // CORRECCIÓN TS(2345): Safe parse float
+    const priceVal = priceMeta?.meta_value ?? '0';
+    const price = parseFloat(priceVal);
 
     return {
-      id: Number(post.ID), // Convertir BigInt a Number para GraphQL
-      name: post.post_title,
-      slug: post.post_name,
-      description: post.post_content,
-      price,
-      commission,
-      netAmount,
-      hasHomeVisit: true, // Esto podría venir de otro meta
+      id: this.toInt(product.ID),
+      name: product.post_title,
+      description: product.post_content,
+      price: price,
+      hasHomeVisit: homeVisitMeta?.meta_value === 'true',
+      provider: provider,
+      netAmount: 0,
+      commission: 0,
     };
   }
 
   async findAll() {
-    const posts = await this.prisma.wpPost.findMany({
-      where: { post_type: 'product', post_status: 'publish' },
-      include: {
-        postmeta: { where: { meta_key: '_price' } },
-      },
-    });
-
-    return posts.map((post) => {
-      const priceMeta = post.postmeta.find((m) => m.meta_key === '_price');
-      return this.mapPostToService(post, priceMeta);
-    });
-  }
-
-  async findOne(id: number) {
-    const post = await this.prisma.wpPost.findUnique({
-      where: { ID: BigInt(id) },
-      include: {
-        postmeta: { where: { meta_key: '_price' } },
-      },
-    });
-
-    if (!post) throw new NotFoundException('Servicio no encontrado');
-    const priceMeta = post.postmeta.find((m) => m.meta_key === '_price');
-    return this.mapPostToService(post, priceMeta);
-  }
-
-  async findByCategory(categorySlug: string) {
-    // Buscar posts que tengan una relación con el término de esa taxonomía
-    const posts = await this.prisma.wpPost.findMany({
-      where: {
-        post_type: 'product',
-        post_status: 'publish',
-        termRelationships: {
-          some: {
-            taxonomy: {
-              taxonomy: 'product_cat',
-              term: { slug: categorySlug },
-            },
-          },
-        },
-      },
-      include: {
-        postmeta: { where: { meta_key: '_price' } },
-      },
-    });
-
-    return posts.map((post) => {
-      const priceMeta = post.postmeta.find((m) => m.meta_key === '_price');
-      return this.mapPostToService(post, priceMeta);
-    });
-  }
-
-  async findServiceDetail(serviceId: number, providerId: number) {
-    // 1. Obtener el servicio (Producto WP)
-    const service = await this.findOne(serviceId);
-
-    // 2. Obtener el proveedor (Tabla Provider)
-    const provider = await this.prisma.provider.findUnique({
-      where: { id: providerId },
-      include: { bank: true },
-    });
-
-    if (!provider) throw new NotFoundException('Proveedor no encontrado');
-
-    // Aquí podrías validar si el proveedor realmente ofrece este servicio
-    // (ej. verificando si el provider.wcCategoryId coincide con la categoría del servicio)
-
-    return {
-      ...service,
-      provider: provider,
-    };
-  }
-
-  // --- MUTACIONES (Escribir en WordPress) ---
-
-  async create(input: CreateServiceInput) {
-    // Generar slug simple
-    const slug = input.name
-      .toLowerCase()
-      .replace(/ /g, '-')
-      .replace(/[^\w-]+/g, '');
-
-    // Crear Post y Meta en transacción
-    return this.prisma.$transaction(async (tx) => {
-      const newPost = await tx.wpPost.create({
-        data: {
-          post_author: BigInt(1), // Admin por defecto
-          post_date: new Date(),
-          post_content: input.description || '',
-          post_title: input.name,
-          post_status: 'publish',
-          post_type: 'product',
-          post_name: slug,
-          // Relación con categoría si viene en el input
-          ...(input.categoryId && {
-            termRelationships: {
-              create: {
-                term_taxonomy_id: BigInt(input.categoryId), // Asumiendo que el ID mapea directo a taxonomy_id
-              },
-            },
-          }),
-          // Crear precio como meta
-          postmeta: {
-            create: {
-              meta_key: '_price',
-              meta_value: input.price.toString(),
-            },
-          },
-        },
-        include: {
-          postmeta: true,
-        },
-      });
-
-      const priceMeta = newPost.postmeta.find((m) => m.meta_key === '_price');
-      return this.mapPostToService(newPost, priceMeta);
-    });
-  }
-
-  async update(id: number, input: UpdateServiceInput) {
-    // Verificar existencia
-    const exists = await this.prisma.wpPost.findUnique({
-      where: { ID: BigInt(id) },
-    });
-    if (!exists) throw new NotFoundException('Servicio no encontrado');
-
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Actualizar Post básico
-      const updatedPost = await tx.wpPost.update({
-        where: { ID: BigInt(id) },
-        data: {
-          post_title: input.name,
-          post_content: input.description,
-        },
-      });
-
-      // 2. Actualizar Precio (Meta)
-      if (input.price !== undefined) {
-        // Buscar si existe el meta
-        const priceMeta = await tx.wpPostMeta.findFirst({
-          where: { post_id: BigInt(id), meta_key: '_price' },
-        });
-
-        if (priceMeta) {
-          await tx.wpPostMeta.update({
-            where: { meta_id: priceMeta.meta_id },
-            data: { meta_value: input.price.toString() },
-          });
-        } else {
-          await tx.wpPostMeta.create({
-            data: {
-              post_id: BigInt(id),
-              meta_key: '_price',
-              meta_value: input.price.toString(),
-            },
-          });
-        }
-      }
-
-      // 3. Retornar actualizado
-      const finalPost = await tx.wpPost.findUnique({
-        where: { ID: BigInt(id) },
-        include: { postmeta: { where: { meta_key: '_price' } } },
-      });
-
-      const pMeta = finalPost?.postmeta.find((m) => m.meta_key === '_price');
-      return this.mapPostToService(finalPost, pMeta);
-    });
-  }
-
-  async remove(id: number) {
-    const exists = await this.prisma.wpPost.findUnique({
-      where: { ID: BigInt(id) },
-    });
-    if (!exists) throw new NotFoundException('Servicio no encontrado');
-
-    // Eliminar (Cascade se encargará de los metas si está configurado en DB,
-    // pero Prisma schema define onDelete: Cascade en WpPostMeta -> WpPost, así que es seguro)
-    await this.prisma.wpPost.delete({
-      where: { ID: BigInt(id) },
-    });
-
-    return {
-      id,
-      name: exists.post_title,
-      hasHomeVisit: false,
-      price: 0,
-      slug: '',
-      commission: 0,
-      netAmount: 0,
-    }; // Return dummy deleted object
+    return [];
   }
 }

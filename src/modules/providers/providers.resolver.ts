@@ -1,121 +1,121 @@
 import {
-  Injectable,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { UserService } from '../users/users.service'; // Necesario para guardar el teléfono en usermeta
+  Resolver,
+  Query,
+  Mutation,
+  Args,
+  Context,
+  ResolveField,
+  Parent,
+  Int,
+} from '@nestjs/graphql';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+
+// Services
+import { ProvidersService } from './providers.service';
+import { UserService } from '../users/users.service';
+
+// Entities & Inputs
+import {
+  Provider,
+  BankAccount,
+  UpdateProviderInput,
+} from 'src/graphql/entities/provider.entity';
+import { User } from 'src/graphql/entities/user.entity';
 import {
   ProviderRegistrationInput,
   UpdateBankInput,
 } from 'src/graphql/entities/register-provider';
-import { UpdateProviderInput } from 'src/graphql/entities/provider.entity';
 
-@Injectable()
-export class ProvidersService {
+@Resolver(() => Provider)
+export class ProvidersResolver {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly userService: UserService,
+    private readonly providersService: ProvidersService,
+    private readonly usersService: UserService,
   ) {}
 
-  // Generador de slug auxiliar
-  private generateSlug(name: string): string {
-    return name
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/[\s_-]+/g, '-');
+  // ==========================================
+  // MUTATIONS (Registro y Edición)
+  // ==========================================
+
+  /**
+   * Registra un usuario como proveedor.
+   * Actualiza el teléfono en wp_usermeta, crea el Proveedor y la cuenta Bancaria.
+   */
+  @Mutation(() => Provider)
+  @UseGuards(JwtAuthGuard)
+  async registerProvider(
+    @Args('input') input: ProviderRegistrationInput,
+    @Context() context: any,
+  ) {
+    // Obtenemos el ID del usuario desde el Token validado
+    const userId = Number(context.req.user.sub);
+
+    return this.providersService.register(userId, input);
   }
 
-  // Lógica de Registro Complejo (Identity + Provider + Bank)
-  async register(userId: number, input: ProviderRegistrationInput) {
-    const { identity, bank } = input;
-
-    // 1. Actualizar teléfono del usuario (Va a wp_usermeta, no a wp_users)
-    await this.userService.updateProfile(userId, {
-      id: userId,
-      phone: identity.phone,
-      // Opcional: Podrías actualizar el displayName aquí también
-      displayName: `${identity.firstName} ${identity.lastName}`,
-    });
-
-    // 2. Verificar si ya existe proveedor
-    const existing = await this.prisma.provider.findUnique({
-      where: { userId },
-    });
-    if (existing) throw new BadRequestException('El usuario ya es proveedor');
-
-    // 3. Crear Proveedor y Banco en transacción
-    const fullName = `${identity.firstName} ${identity.lastName}`;
-    let slug = this.generateSlug(fullName);
-
-    // Pequeña validación de slug único
-    const slugCheck = await this.prisma.provider.findUnique({
-      where: { slug },
-    });
-    if (slugCheck) slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
-
-    return this.prisma.provider.create({
-      data: {
-        userId,
-        name: fullName,
-        slug,
-        location: 'Chile', // Default según tu código anterior
-        phone: identity.phone, // Guardamos teléfono también en Provider si lo deseas
-        bank: {
-          create: {
-            bankName: bank.bankName,
-            accountNumber: bank.accountNumber,
-            accountType: bank.accountType,
-          },
-        },
-      },
-      include: { bank: true },
-    });
+  /**
+   * Actualiza datos del perfil del proveedor (Bio, Logo, Ubicación, etc.)
+   */
+  @Mutation(() => Provider)
+  @UseGuards(JwtAuthGuard)
+  async updateProvider(
+    @Args('updateProviderInput') input: UpdateProviderInput,
+  ): Promise<Provider> {
+    return this.providersService.updateProviderData(input);
   }
 
-  // Actualizar solo datos del Proveedor
-  async updateProviderData(input: UpdateProviderInput) {
-    return this.prisma.provider.update({
-      where: { id: input.id },
-      data: {
-        name: input.name,
-        location: input.location,
-        logoUrl: input.logoUrl,
-        bio: input.bio,
-      },
-      include: { bank: true },
-    });
+  /**
+   * Actualiza exclusivamente los datos bancarios
+   */
+  @Mutation(() => BankAccount)
+  @UseGuards(JwtAuthGuard)
+  async updateBank(
+    @Args('updateBankInput') input: UpdateBankInput,
+  ): Promise<BankAccount> {
+    return this.providersService.updateBankData(input);
   }
 
-  // Actualizar solo Banco
-  async updateBankData(input: UpdateBankInput) {
-    return this.prisma.bankAccount.update({
-      where: { id: input.bankId },
-      data: {
-        bankName: input.bankName,
-        accountNumber: input.accountNumber,
-        accountType: input.accountType,
-      },
-    });
+  // ==========================================
+  // QUERIES (Consultas)
+  // ==========================================
+
+  /**
+   * Obtiene el perfil del proveedor del usuario logueado
+   */
+  @Query(() => Provider, { name: 'myProvider', nullable: true })
+  @UseGuards(JwtAuthGuard)
+  async myProvider(@Context() context: any) {
+    const userId = Number(context.req.user.sub);
+    return this.providersService.findByUserId(userId);
   }
 
-  // Utilidad para queries
-  async findByUserId(userId: number) {
-    return this.prisma.provider.findUnique({
-      where: { userId },
-      include: { bank: true },
-    });
-  }
-
+  /**
+   * Lista pública de proveedores
+   */
+  @Query(() => [Provider], { name: 'providers' })
   async findAll() {
-    return this.prisma.provider.findMany({ include: { bank: true } });
+    return this.providersService.findAll();
   }
 
-  async findOne(id: number) {
-    return this.prisma.provider.findUnique({
-      where: { id },
-      include: { bank: true },
-    });
+  /**
+   * Obtiene un proveedor específico por su ID
+   */
+  @Query(() => Provider, { name: 'provider', nullable: true })
+  async findOne(@Args('id', { type: () => Int }) id: number) {
+    return this.providersService.findOne(id);
+  }
+
+  // ==========================================
+  // FIELD RESOLVERS (Relaciones)
+  // ==========================================
+
+  /**
+   * Permite obtener los datos del Usuario (User) cuando consultamos un Proveedor.
+   * Ejemplo GQL: { providers { name, user { email } } }
+   */
+  @ResolveField(() => User)
+  async user(@Parent() provider: Provider) {
+    return this.usersService.findOne(provider.userId);
   }
 }

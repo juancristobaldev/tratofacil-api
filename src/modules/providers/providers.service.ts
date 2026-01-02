@@ -4,82 +4,78 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { UserService } from '../users/users.service'; // Necesario para guardar el teléfono en usermeta
 import {
-  CreateProviderInput,
-  UpdateProviderInput,
-} from 'src/graphql/entities/provider.entity';
+  ProviderRegistrationInput,
+  UpdateBankInput,
+} from 'src/graphql/entities/register-provider';
+import { UpdateProviderInput } from 'src/graphql/entities/provider.entity';
 
 @Injectable()
 export class ProvidersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly userService: UserService,
+  ) {}
 
-  // Generador simple de slugs
+  // Generador de slug auxiliar
   private generateSlug(name: string): string {
     return name
       .toLowerCase()
       .trim()
       .replace(/[^\w\s-]/g, '')
-      .replace(/[\s_-]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      .replace(/[\s_-]+/g, '-');
   }
 
-  async create(userId: number, input: CreateProviderInput) {
-    // 1. Verificar si el usuario ya es proveedor
+  // Lógica de Registro Complejo (Identity + Provider + Bank)
+  async register(userId: number, input: ProviderRegistrationInput) {
+    const { identity, bank } = input;
+
+    // 1. Actualizar teléfono del usuario (Va a wp_usermeta, no a wp_users)
+    await this.userService.updateProfile(userId, {
+      id: userId,
+      phone: identity.phone,
+      // Opcional: Podrías actualizar el displayName aquí también
+      displayName: `${identity.firstName} ${identity.lastName}`,
+    });
+
+    // 2. Verificar si ya existe proveedor
     const existing = await this.prisma.provider.findUnique({
       where: { userId },
     });
-    if (existing) {
-      throw new BadRequestException(
-        'El usuario ya tiene un perfil de proveedor',
-      );
-    }
+    if (existing) throw new BadRequestException('El usuario ya es proveedor');
 
-    // 2. Generar slug único (añadir sufijo si existe)
-    let slug = this.generateSlug(input.name);
-    const slugExists = await this.prisma.provider.findUnique({
+    // 3. Crear Proveedor y Banco en transacción
+    const fullName = `${identity.firstName} ${identity.lastName}`;
+    let slug = this.generateSlug(fullName);
+
+    // Pequeña validación de slug único
+    const slugCheck = await this.prisma.provider.findUnique({
       where: { slug },
     });
-    if (slugExists) {
-      slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
-    }
+    if (slugCheck) slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
 
-    // 3. Crear Proveedor y Cuenta Bancaria (si viene en el input)
     return this.prisma.provider.create({
       data: {
         userId,
-        name: input.name,
+        name: fullName,
         slug,
-        location: input.location,
-        logoUrl: input.logoUrl,
-        bio: input.bio,
-        phone: input.phone,
-        // Conexión anidada para crear la cuenta bancaria en la misma transacción
-        ...(input.bank && {
-          bank: {
-            create: {
-              ...input.bank,
-            },
+        location: 'Chile', // Default según tu código anterior
+        phone: identity.phone, // Guardamos teléfono también en Provider si lo deseas
+        bank: {
+          create: {
+            bankName: bank.bankName,
+            accountNumber: bank.accountNumber,
+            accountType: bank.accountType,
           },
-        }),
+        },
       },
       include: { bank: true },
     });
   }
 
-  async update(userId: number, input: UpdateProviderInput) {
-    // 1. Validar propiedad
-    const provider = await this.prisma.provider.findUnique({
-      where: { id: input.id },
-    });
-
-    if (!provider) throw new NotFoundException('Proveedor no encontrado');
-    if (provider.userId !== userId) {
-      throw new BadRequestException(
-        'No tienes permiso para editar este perfil',
-      );
-    }
-
-    // 2. Actualizar (Upsert para el banco: crea si no existe, actualiza si existe)
+  // Actualizar solo datos del Proveedor
+  async updateProviderData(input: UpdateProviderInput) {
     return this.prisma.provider.update({
       where: { id: input.id },
       data: {
@@ -87,27 +83,24 @@ export class ProvidersService {
         location: input.location,
         logoUrl: input.logoUrl,
         bio: input.bio,
-        phone: input.phone,
-        ...(input.bank && {
-          bank: {
-            upsert: {
-              create: { ...input.bank },
-              update: { ...input.bank },
-            },
-          },
-        }),
       },
       include: { bank: true },
     });
   }
 
-  async findOne(id: number) {
-    return this.prisma.provider.findUnique({
-      where: { id },
-      include: { bank: true },
+  // Actualizar solo Banco
+  async updateBankData(input: UpdateBankInput) {
+    return this.prisma.bankAccount.update({
+      where: { id: input.bankId },
+      data: {
+        bankName: input.bankName,
+        accountNumber: input.accountNumber,
+        accountType: input.accountType,
+      },
     });
   }
 
+  // Utilidad para queries
   async findByUserId(userId: number) {
     return this.prisma.provider.findUnique({
       where: { userId },
@@ -116,7 +109,12 @@ export class ProvidersService {
   }
 
   async findAll() {
-    return this.prisma.provider.findMany({
+    return this.prisma.provider.findMany({ include: { bank: true } });
+  }
+
+  async findOne(id: number) {
+    return this.prisma.provider.findUnique({
+      where: { id },
       include: { bank: true },
     });
   }
