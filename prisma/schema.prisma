@@ -44,56 +44,48 @@ enum PaymentStatus {
 // 1. USUARIOS
 // =========================================================
 model User {
-  id          Int      @id @default(autoincrement())
-  username    String   @unique
-  email       String   @unique
-  displayName String
-  nicename    String
-  url         String   @default("")
-  status      Int      @default(0)
-  registered  DateTime @default(now())
-  activationKey String @default("")
-  role        Role?    @default(CLIENT)
+  id            Int      @id @default(autoincrement())
+  username      String   @unique
+  email         String   @unique
+  displayName   String
+  nicename      String
+  url           String   @default("")
+  status        Int      @default(0)
+  registered    DateTime @default(now())
+  activationKey String   @default("")
+  role          Role?    @default(CLIENT)
 
-  provider   Provider?
-  usermeta   UserMeta[]
-  orders     Order[]   @relation("ClientOrders")
-  reviews    ProviderReview[] @relation("ClientReviews")
+  provider Provider?
+  orders   Order[]          @relation("ClientOrders")
+  reviews  ProviderReview[] @relation("ClientReviews")
 }
-
-
 
 // =========================================================
 // 2. CATEGORÍAS Y SERVICIOS
 // =========================================================
 model Category {
-  id          Int      @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   name        String
-  slug        String   @unique
+  slug        String  @unique
   description String?
-  
+  parentId    Int?
 
-  services Service[]
+  // ✅ CORRECCIÓN: Agregado @relation("CategoryServices") para coincidir con Service
+  services Service[] @relation("CategoryServices")
 
   @@index([parentId])
 }
 
 model Service {
-  id            Int      @id @default(autoincrement())
-  name          String
-  slug          String   @unique
-  description   String?
-  price         Float?
-  commission    Float?
-  categoryId    Int?
-  subCategoryId Int?
-  netAmount     Float?
-  hasHomeVisit  Boolean  @default(false)
+  id          Int     @id @default(autoincrement())
+  name        String
+  slug        String  @unique
+  description String?
 
-  category    Category? @relation("CategoryServices", fields: [categoryId], references: [id])
-  subCategory Category? @relation("SubCategoryServices", fields: [subCategoryId], references: [id])
+  categoryId Int?
+  // ✅ Aquí ya tenías el nombre "CategoryServices", por eso fallaba el otro lado
+  category   Category? @relation("CategoryServices", fields: [categoryId], references: [id])
 
-  orders Order[]
   serviceProviders ServiceProvider[]
 }
 
@@ -101,36 +93,43 @@ model Service {
 // 3. PROVEEDORES
 // =========================================================
 model Provider {
-  id          Int @id @default(autoincrement())
-  userId      Int @unique
+  id           Int  @id @default(autoincrement())
+  userId       Int  @unique
   wcCategoryId Int?
 
   name     String
-  slug     String @unique
+  slug     String  @unique
   location String?
   logoUrl  String?
   bio      String?
   phone    String?
 
-  bank        BankAccount?
-  reviews     ProviderReview[]
+  bank         BankAccount?
+  reviews      ProviderReview[]
   certificates ProviderCertificate[]
   services     ServiceProvider[]
-  user        User   @relation(fields: [userId], references: [id])
+  user         User                  @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 // =========================================================
-// 4. SERVICE PROVIDER (Muchos a muchos)
+// 4. SERVICE PROVIDER (Oferta Específica)
 // =========================================================
 model ServiceProvider {
   id         Int @id @default(autoincrement())
   serviceId  Int
   providerId Int
 
-  price      Float?  // <--- AGREGAR ESTO si el precio es por proveedor
+  slug         String  @unique
+  description  String?
+  price        Float?
+  commission   Float?
+  netAmount    Float?
+  hasHomeVisit Boolean @default(false)
+
+  orders Order[]
 
   service  Service  @relation(fields: [serviceId], references: [id])
   provider Provider @relation(fields: [providerId], references: [id])
@@ -144,10 +143,10 @@ model ServiceProvider {
 // 5. REVIEWS Y CERTIFICADOS
 // =========================================================
 model ProviderReview {
-  id         Int  @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   providerId Int
   clientId   Int
-  orderId    Int? @unique
+  orderId    Int?     @unique
   rating     Int
   comment    String?
   createdAt  DateTime @default(now())
@@ -158,13 +157,13 @@ model ProviderReview {
 }
 
 model ProviderCertificate {
-  id          Int  @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   providerId  Int
   title       String
   institution String?
   year        Int?
   fileUrl     String
-  verified    Boolean @default(false)
+  verified    Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   provider Provider @relation(fields: [providerId], references: [id])
@@ -174,14 +173,14 @@ model ProviderCertificate {
 // 6. BANK ACCOUNT
 // =========================================================
 model BankAccount {
-  id            Int   @id @default(autoincrement())
+  id            Int     @id @default(autoincrement())
   bankName      String
   accountNumber String
   accountType   String
   rut           String?
   email         String?
 
-  providerId Int   @unique
+  providerId Int      @unique
   provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
@@ -192,34 +191,34 @@ model BankAccount {
 // 7. ÓRDENES Y PAGOS
 // =========================================================
 model Order {
-  id        Int @id @default(autoincrement())
-  clientId  Int
-  client    User   @relation("ClientOrders", fields: [clientId], references: [id])
+  id       Int  @id @default(autoincrement())
+  clientId Int
+  client   User @relation("ClientOrders", fields: [clientId], references: [id])
 
-  total     Float
-  status    OrderStatus @default(PENDING)
+  total  Float
+  status OrderStatus @default(PENDING)
 
   wcOrderId  Int?
   wcOrderKey String?
 
-  productId Int?
-  product   Service? @relation(fields: [productId], references: [id])
+  serviceProviderId Int?
+  serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
 
-  payment  Payment?
-  review   ProviderReview?
+  payment Payment?
+  review  ProviderReview?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Payment {
-  id      Int @id @default(autoincrement())
-  orderId Int @unique
-  order   Order  @relation(fields: [orderId], references: [id])
+  id      Int   @id @default(autoincrement())
+  orderId Int   @unique
+  order   Order @relation(fields: [orderId], references: [id])
 
   amount        Float
   provider      PaymentProvider
-  status        PaymentStatus @default(INITIATED)
+  status        PaymentStatus   @default(INITIATED)
   transactionId String?
 
   createdAt DateTime @default(now())
@@ -230,8 +229,8 @@ model Payment {
 // 8. VERIFICACIÓN DE EMAIL
 // =========================================================
 model EmailVerification {
-  id        Int  @id @default(autoincrement())
-  email     String  @unique
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
   code      String
   expiresAt DateTime
   createdAt DateTime @default(now())
