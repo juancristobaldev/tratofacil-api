@@ -126,6 +126,14 @@ export class CreateServiceInput {
   @IsOptional()
   @IsInt()
   categoryId?: number;
+
+  @Field(() => Int)
+  @IsInt()
+  price: number;
+
+  @Field(() => Boolean)
+  @IsInt()
+  hasHomeVisit: boolean;
 }
 
 @InputType()
@@ -138,6 +146,10 @@ export class UpdateServiceInput {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @Field(() => Int)
+  @IsInt()
+  price: number;
 
   @Field({ nullable: true })
   @IsOptional()

@@ -29,6 +29,10 @@ export class RegisterInput {
   @IsNotEmpty()
   @MinLength(6)
   password: string;
+  @Field()
+  @IsNotEmpty()
+  @MinLength(6)
+  displayName: string;
 
   @Field({ nullable: true })
   @IsOptional()

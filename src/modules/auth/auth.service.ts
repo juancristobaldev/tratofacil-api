@@ -3,6 +3,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -10,87 +11,51 @@ import {
   LoginInput,
   RegisterInput,
   CredentialsInput,
-} from 'src/graphql/inputs/auth.input'; // Ajusta imports
-import { IdentityInput } from 'src/graphql/entities/register-provider';
+} from 'src/graphql/inputs/auth.input';
 import { AuthType } from 'src/graphql/entities/auth.entity';
 import { Role } from 'src/graphql/enums/role.enum';
-import * as wpHash from 'wordpress-hash-node';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
   constructor(private prisma: PrismaService, private jwtService: JwtService) {}
 
-  // ... (métodos login, register, getMe existentes) ...
-  // Asegúrate de mantener tu código existente de login/register aquí.
-  private getWpCapabilities(role: Role): string {
-    let wpRole = 'subscriber';
-
-    if (role === Role.ADMIN) {
-      wpRole = 'administrator';
-    }
-
-    if (role === Role.PROVIDER) {
-      wpRole = 'vendor';
-    }
-
-    return `a:1:{s:${wpRole.length}:"${wpRole}";b:1;}`;
-  }
-
-  // Utilidad para deserializar roles
-  private getRoleFromMeta(metaValue: string): Role {
-    if (metaValue.includes('"administrator"')) {
-      return Role.ADMIN;
-    }
-
-    if (metaValue.includes('"vendor"')) {
-      return Role.PROVIDER;
-    }
-
-    return Role.CLIENT;
-  }
-
-  // Helper para asignar el rol a la entidad de salida
-  private mapUserRole(user: any) {
-    const capMeta = user.usermeta?.find(
-      (m: any) => m.key === 'wp_capabilities',
-    );
-
-    const role = capMeta?.value
-      ? this.getRoleFromMeta(capMeta.value)
-      : Role.CLIENT;
-
-    return {
-      ...user,
-      role,
-    };
-  }
-
+  /**
+   * LOGIN: Autenticación nativa con Bcrypt
+   */
   async login(loginInput: LoginInput): Promise<AuthType> {
-    // ... tu lógica existente ...
-    // Mock simple por si no lo tienes a mano:
     const user = await this.prisma.user.findUnique({
       where: { email: loginInput.email },
-      include: {
-        usermeta: true,
-      },
     });
 
-    if (!user) throw new UnauthorizedException('Credenciales inválidas');
-    // validar password con bcrypt...
-    const mappedUser = this.mapUserRole(user);
-    const payload = { ...mappedUser, sub: mappedUser.id };
+    if (!user) {
+      throw new UnauthorizedException('Credenciales inválidas');
+    }
 
-    // Ajustar rol
+    // Validación de contraseña con bcrypt (Reemplaza wpHash)
+    const isMatch = await bcrypt.compare(loginInput.password, user.password);
+    if (!isMatch) {
+      throw new UnauthorizedException('Credenciales inválidas');
+    }
+
+    const accessToken = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
     return {
-      accessToken: this.jwtService.sign(payload),
+      accessToken,
       user: user as any,
     };
   }
 
+  /**
+   * REGISTER: Registro limpio en tabla User
+   */
   async register(registerInput: RegisterInput): Promise<AuthType> {
-    const { email, password, role } = registerInput;
+    const { email, password, role, displayName } = registerInput;
 
-    // 1. Verificar si el usuario ya existe
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });
@@ -99,82 +64,55 @@ export class AuthService {
       throw new ConflictException('El correo electrónico ya está registrado.');
     }
 
-    // 2. Hashear la contraseña (bcrypt es el estándar de la industria)
-    const hashedPassword = wpHash.HashPassword(password);
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const username =
+      email.split('@')[0] + Math.floor(1000 + Math.random() * 9000);
 
-    // 3. Generar un username (user_login) basado en el email
-    const username = email.split('@')[0] + Math.floor(Math.random() * 1000);
-
-    // 4. Crear el usuario en la tabla de WordPress (wp_users)
     const newUser = await this.prisma.user.create({
       data: {
         email,
         password: hashedPassword,
-        username: username,
-        nicename: username,
-        displayName: username,
+        username,
+        nicename: username.toLowerCase(),
+        displayName: displayName || username,
+        role: role || Role.CLIENT, // Uso directo del Enum en la columna de la tabla
+        status: 1, // 1 = Activo
         registered: new Date(),
-        status: 0,
         url: '',
         activationKey: '',
       },
     });
 
-    // 5. Asignar capacidades/roles en wp_usermeta (Opcional pero recomendado para WordPress)
-    // El formato 'a:1:{s:6:"client";b:1;}' es el estándar serializado de PHP para roles de WP
-    const wpRole = role === 'PROVIDER' ? 'vendor' : 'client';
-    await this.prisma.userMeta.create({
-      data: {
-        userId: newUser.id,
-        key: 'wp_capabilities',
-        value: `a:1:{s:${wpRole.length}:"${wpRole}";b:1;}`,
-      },
+    const accessToken = this.jwtService.sign({
+      sub: newUser.id,
+      email: newUser.email,
+      role: newUser.role,
     });
 
-    // 6. Generar el Token JWT
-    const payload = {
-      sub: newUser.id.toString(), // Convertimos BigInt a string para el JWT
-      email: newUser.email,
-      role: role || 'CLIENT',
-    };
-
     return {
-      accessToken: this.jwtService.sign(payload),
+      accessToken,
       user: newUser as any,
     };
   }
-  async getMe(userId: number | string) {
-    const me = await this.prisma.user.findUnique({
-      where: { id: typeof userId === 'string' ? Number(userId) : userId },
-    });
-    console.log({ me });
-    return me;
-  }
 
-  // --- NUEVOS MÉTODOS ---
-
-  async checkAndSendVerification(input: CredentialsInput): Promise<boolean> {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: input.email },
+  /**
+   * GET ME: Obtiene el usuario actual con sus relaciones de negocio
+   */
+  async getMe(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        provider: true, // Si es proveedor, trae su perfil
+      },
     });
 
-    if (existingUser) {
-      throw new BadRequestException(
-        'El correo electrónico ya está registrado.',
-      );
-    }
-
-    // TODO: Integrar servicio de Email real.
-    // Por ahora, generamos un código fijo "123456" o lo guardamos en una tabla temporal (Redis/DB).
-    // Para MVP, simplemente retornamos true y asumimos que el usuario usará un código mágico o
-    // implementas una tabla `EmailVerification` en Prisma.
-
-    // Ejemplo guardando en tabla (si existe en tu schema prisma):
-    // await this.prisma.emailVerification.create({ ... })
-
-    console.log(`Código de verificación para ${input.email}: 123456`);
-    return true;
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    return user;
   }
+
+  /**
+   * VALIDATE TOKEN: Para Guards y Sesiones
+   */
   async validateToken(token: string) {
     try {
       const payload = this.jwtService.verify(token);
@@ -184,74 +122,78 @@ export class AuthService {
     }
   }
 
+  /**
+   * VERIFICACIÓN: Lógica de negocio para registro de proveedores
+   */
+  async checkAndSendVerification(input: CredentialsInput): Promise<boolean> {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: input.email },
+    });
+
+    if (existingUser) {
+      throw new BadRequestException('El correo ya está registrado.');
+    }
+
+    // Simulación de envío de código
+    console.log(`Código de verificación enviado a ${input.email}: 123456`);
+    return true;
+  }
+
+  /**
+   * CONFIRM AND CREATE: Registro atómico de proveedores (Sin UserMeta)
+   */
   async confirmAndCreateUser(
     code: string,
     credentials: CredentialsInput,
-    identity: IdentityInput,
+    identity: any,
   ): Promise<AuthType> {
     if (code !== '123456') {
       throw new BadRequestException('Código inválido');
     }
 
-    const existing = await this.prisma.user.findUnique({
-      where: { email: credentials.email },
-    });
-    if (existing) throw new BadRequestException('Usuario ya existe');
-
-    const hashedPassword = wpHash.HashPassword(credentials.password);
-
+    const hashedPassword = await bcrypt.hash(credentials.password, 10);
     const username =
       credentials.email.split('@')[0] + Math.floor(Math.random() * 1000);
 
-    const company = identity.company;
-
-    console.log({
-      company,
-      username,
-    });
-
-    const displayName =
-      identity.company ?? `${identity.firstName} ${identity.lastName}`;
-
+    // Creamos el usuario y el perfil de proveedor en una sola transacción
     const newUser = await this.prisma.user.create({
       data: {
         email: credentials.email,
         username,
         password: hashedPassword,
-        displayName,
-        nicename: username,
+        displayName:
+          identity.company || `${identity.firstName} ${identity.lastName}`,
+        nicename: username.toLowerCase(),
+        role: Role.PROVIDER,
+        status: 1,
         registered: new Date(),
-        status: 0,
+        // Los datos de nombre y teléfono se guardan directamente en la tabla Provider
+        provider: {
+          create: {
+            name:
+              identity.company || `${identity.firstName} ${identity.lastName}`,
+            slug: (identity.company || username)
+              .toLowerCase()
+              .replace(/ /g, '-'),
+            phone: identity.phone, // Campo nativo en tabla Provider
+            location: 'Chile',
+          },
+        },
+      },
+      include: {
+        provider: true,
       },
     });
 
-    await this.prisma.userMeta.createMany({
-      data: [
-        { userId: newUser.id, key: 'first_name', value: identity.firstName },
-        { userId: newUser.id, key: 'last_name', value: identity.lastName },
-        { userId: newUser.id, key: 'nickname', value: displayName },
-        { userId: newUser.id, key: 'display_name', value: displayName },
-        { userId: newUser.id, key: 'billing_phone', value: identity.phone },
-        {
-          userId: newUser.id,
-          key: 'wp_capabilities',
-          value: this.getWpCapabilities(Role.PROVIDER),
-        },
-        { userId: newUser.id, key: 'wp_user_level', value: '0' },
-      ],
+    const accessToken = this.jwtService.sign({
+      sub: newUser.id,
+      email: newUser.email,
+      role: newUser.role,
     });
-
-    const mappedUser = this.mapUserRole(newUser);
-
-    const payload = { sub: newUser.id, ...mappedUser };
-
-    console.log({ payload });
-
-    const accessToken = this.jwtService.sign(payload);
 
     return {
       accessToken,
-      user: payload,
+      user: newUser as any,
     };
   }
 }

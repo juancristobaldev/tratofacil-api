@@ -4,11 +4,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { UserService } from './users.service';
-import {
-  User,
-  RegisterInput,
-  UpdateUserInput,
-} from 'src/graphql/entities/user.entity';
+import { User, UpdateUserInput } from 'src/graphql/entities/user.entity';
 import { Role } from 'src/graphql/enums/role.enum';
 import { PrismaService } from 'src/prisma/prisma.service';
 

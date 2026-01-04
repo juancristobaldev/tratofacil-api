@@ -17,14 +17,13 @@ import { OrderStatus } from 'src/graphql/enums/order-status.enum';
 @Injectable()
 export class PaymentService {
   constructor(private prisma: PrismaService) {}
-  // ===================================
-  // ==================
+
+  // =====================================================
   // 1️⃣ Credenciales Webpay
   // =====================================================
   private readonly commerceCode = process.env.COMMERCE_CODE!;
   private readonly apiKey = process.env.API_KEY!;
 
-  // Método interno para inicializar WebpayPlus
   private tbk(): any {
     return new WebpayPlus.Transaction(
       new Options(
@@ -38,32 +37,32 @@ export class PaymentService {
   }
 
   // =====================================================
-  // 2️⃣ Crear Orden y Pago
+  // 2️⃣ Crear Orden y Pago (Alineado con ServiceProvider)
   // =====================================================
   async createOrderWithPayment(userId: number, input: CreateOrderInput) {
-    const productId = Number(input.productId);
-
-    const product = await this.prisma.wpPost.findUnique({
-      where: { ID: BigInt(productId) },
+    // Buscamos la oferta específica del proveedor (ServiceProvider)
+    const offer = await this.prisma.serviceProvider.findUnique({
+      where: { id: input.serviceProviderId },
     });
-    if (!product) throw new NotFoundException('Producto no encontrado');
 
-    const priceMeta = await this.prisma.wpPostMeta.findFirst({
-      where: { post_id: BigInt(productId), meta_key: '_price' },
-    });
-    const price = priceMeta?.meta_value ? parseFloat(priceMeta.meta_value) : 0;
-    if (price <= 0) throw new BadRequestException('Producto sin precio válido');
+    if (!offer) throw new NotFoundException('La oferta de servicio no existe');
+
+    const price = offer.price || 0;
+    if (price <= 0)
+      throw new BadRequestException('La oferta no tiene un precio válido');
 
     return this.prisma.$transaction(async (tx) => {
+      // Creamos la orden vinculada a la oferta
       const order = await tx.order.create({
         data: {
           clientId: userId,
           total: price,
           status: OrderStatus.PENDING,
-          productId,
+          serviceProviderId: offer.id,
         },
       });
 
+      // Creamos el registro de pago inicial
       const payment = await tx.payment.create({
         data: {
           orderId: order.id,
@@ -78,7 +77,7 @@ export class PaymentService {
   }
 
   // =====================================================
-  // 3️⃣ Iniciar Webpay (Token real)
+  // 3️⃣ Iniciar Webpay
   // =====================================================
   async createWebpayTransaction(
     orderId: number,
@@ -99,7 +98,6 @@ export class PaymentService {
     const sessionId = `SES-${order.clientId}-${Date.now()}`;
 
     try {
-      // Llamada real al SDK de Webpay
       const response = await this.tbk().create(
         buyOrder,
         sessionId,
@@ -107,7 +105,6 @@ export class PaymentService {
         returnUrl,
       );
 
-      // Guardamos el token en Payment
       await this.prisma.payment.update({
         where: { id: order.payment.id },
         data: { transactionId: response.token },
@@ -115,7 +112,7 @@ export class PaymentService {
 
       return {
         token: response.token,
-        url: response.url, // <-- Frontend redirige a esta URL
+        url: response.url,
       };
     } catch (error: any) {
       throw new InternalServerErrorException(
@@ -141,12 +138,13 @@ export class PaymentService {
       const success =
         commitResponse.status === 'AUTHORIZED' &&
         commitResponse.response_code === 0;
+
       const newPaymentStatus = success
         ? PaymentStatus.CONFIRMED
         : PaymentStatus.FAILED;
       const newOrderStatus = success ? OrderStatus.PENDING : OrderStatus.FAILED;
 
-      const updatedOrder = await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.$transaction(async (tx) => {
         await tx.payment.update({
           where: { id: payment.id },
           data: { status: newPaymentStatus },
@@ -155,11 +153,13 @@ export class PaymentService {
         return tx.order.update({
           where: { id: payment.orderId },
           data: { status: newOrderStatus },
-          include: { payment: true, client: true },
+          include: {
+            payment: true,
+            client: true,
+            serviceProvider: { include: { service: true } },
+          },
         });
       });
-
-      return updatedOrder;
     } catch (error: any) {
       throw new InternalServerErrorException(
         'Error al confirmar transacción Webpay: ' + error.message,
@@ -167,18 +167,16 @@ export class PaymentService {
     }
   }
 
+  // =====================================================
+  // 5️⃣ Listar Órdenes por Proveedor (Nativo)
+  // =====================================================
   async getOrdersByProviderId(providerId: number) {
-    // 1️⃣ Obtener provider
-    const provider = await this.prisma.provider.findUnique({
-      where: { id: providerId },
-    });
-
-    if (!provider) return [];
-
-    // 2️⃣ Buscar órdenes cuyo producto pertenezca al provider
-    const orders = await this.prisma.order.findMany({
+    // Buscamos órdenes vinculadas a cualquier oferta (ServiceProvider) de este proveedor
+    return this.prisma.order.findMany({
       where: {
-        productId: { not: null },
+        serviceProvider: {
+          providerId: providerId,
+        },
         payment: {
           status: PaymentStatus.CONFIRMED,
         },
@@ -186,66 +184,38 @@ export class PaymentService {
       include: {
         client: true,
         payment: true,
+        serviceProvider: {
+          include: {
+            service: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
-
-    console.log({ provider, orders });
-
-    // 3️⃣ Filtrar por autor del producto (wp_posts.post_author)
-    const result = [];
-
-    for (const order of orders) {
-      const product = await this.prisma.wpPost.findUnique({
-        where: { ID: BigInt(order.productId!) },
-      });
-      if (!product) continue;
-
-      result.push({
-        ...order,
-        product: {
-          id: Number(product.ID),
-          title: product.post_title,
-        },
-      });
-    }
-
-    return result;
   }
 
-  /**
-   * Actualizar estado de la orden
-   */
+  // =====================================================
+  // 6️⃣ Actualizar Estado de la Orden
+  // =====================================================
   async updateOrderStatus(
     orderId: number,
-    status: OrderStatus | any,
+    status: OrderStatus,
     providerId: number,
   ) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
+      include: { serviceProvider: true },
     });
 
-    console.log({ order });
+    // Validamos que la orden pertenezca al proveedor que intenta actualizarla
+    if (!order || order.serviceProvider?.providerId !== providerId) {
+      throw new ForbiddenException(
+        'No tienes permiso para actualizar esta orden',
+      );
+    }
 
-    if (!order?.productId) throw new ForbiddenException();
-
-    const product = await this.prisma.wpPost.findUnique({
-      where: { ID: BigInt(order.productId) },
-    });
-
-    console.log({ product });
-
-    const provider = await this.prisma.provider.findUnique({
-      where: { id: providerId },
-    });
-
-    console.log({ provider });
-
-    if (!product || !provider) throw new ForbiddenException();
-
-    console.log({ status });
     return this.prisma.order.update({
       where: { id: orderId },
       data: { status },
