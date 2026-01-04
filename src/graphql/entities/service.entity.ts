@@ -53,12 +53,6 @@ export class Service {
   @Field(() => Float, { nullable: true })
   commission?: number;
 
-  @Field(() => Int, { nullable: true })
-  categoryId?: number;
-
-  @Field(() => Int, { nullable: true })
-  subCategoryId?: number;
-
   @Field(() => Float, { nullable: true })
   netAmount?: number;
 
@@ -69,8 +63,8 @@ export class Service {
   @Field(() => Category, { nullable: true })
   category?: Category;
 
-  @Field(() => Category, { nullable: true })
-  subCategory?: Category;
+  @Field(() => Int, { nullable: true })
+  categoryId?: number;
 
   @Field(() => [ServiceProvider], { nullable: 'itemsAndList' })
   serviceProviders?: ServiceProvider[];

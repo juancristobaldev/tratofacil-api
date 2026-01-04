@@ -55,8 +55,8 @@ export class Order {
 
   // RELACIÓN PRODUCTO (SERVICIO)
   // Esta relación existía en Prisma pero faltaba aquí
-  @Field(() => Service, { nullable: true })
-  product?: Service | null;
+  @Field(() => OrderProduct, { nullable: true })
+  product?: OrderProduct | null;
 
   // =========================
   // RELACIONES
