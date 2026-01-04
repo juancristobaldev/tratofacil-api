@@ -61,17 +61,7 @@ model User {
   reviews    ProviderReview[] @relation("ClientReviews")
 }
 
-// Datos extra tipo key/value
-model UserMeta {
-  id     Int    @id @default(autoincrement())
-  userId Int
-  key    String
-  value  String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
 
 // =========================================================
 // 2. CATEGORÍAS Y SERVICIOS
@@ -81,7 +71,7 @@ model Category {
   name        String
   slug        String   @unique
   description String?
-  parentId    Int?
+  
 
   services Service[]
 
@@ -139,6 +129,8 @@ model ServiceProvider {
   id         Int @id @default(autoincrement())
   serviceId  Int
   providerId Int
+
+  price      Float?  // <--- AGREGAR ESTO si el precio es por proveedor
 
   service  Service  @relation(fields: [serviceId], references: [id])
   provider Provider @relation(fields: [providerId], references: [id])

@@ -1,39 +1,11 @@
-import {
-  ObjectType,
-  Field,
-  Int,
-  InputType,
-  registerEnumType,
-} from '@nestjs/graphql';
-import {
-  IsEmail,
-  IsNotEmpty,
-  IsString,
-  MinLength,
-  IsEnum,
-  IsOptional,
-} from 'class-validator';
+import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
+import { IsEmail, MinLength, IsEnum, IsOptional } from 'class-validator';
 import { Provider } from './provider.entity';
 import { Role } from '../enums/role.enum';
 
 /* ======================
-   REGISTRAR ENUM
+   ENTIDADES
 ====================== */
-
-@ObjectType()
-export class UserMeta {
-  @Field(() => Int)
-  umeta_id: number;
-
-  @Field(() => Int)
-  userId: number;
-
-  @Field()
-  key: string;
-
-  @Field(() => String, { nullable: true })
-  value?: string | null;
-}
 
 @ObjectType()
 export class User {
@@ -66,9 +38,6 @@ export class User {
 
   @Field(() => Role, { nullable: true })
   role?: Role;
-
-  @Field(() => [UserMeta], { nullable: true })
-  usermeta?: UserMeta[];
 
   @Field(() => Provider, { nullable: true })
   provider?: Provider | null;

@@ -1,20 +1,10 @@
-import {
-  ObjectType,
-  Field,
-  Int,
-  Float,
-  InputType,
-  registerEnumType,
-} from '@nestjs/graphql';
+import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
 import { IsInt, Min } from 'class-validator';
 import { OrderStatus } from '../enums/order-status.enum';
 import { User } from './user.entity';
 import { Payment } from './payment.entity';
 import { ProviderReview } from './provider.entity';
-
-/* ======================
-   REGISTRAR ENUM
-====================== */
+import { Service } from './service.entity'; // Importación necesaria
 
 @ObjectType()
 export class OrderProduct {
@@ -63,17 +53,17 @@ export class Order {
   @Field(() => Int, { nullable: true })
   productId?: number | null;
 
+  // RELACIÓN PRODUCTO (SERVICIO)
+  // Esta relación existía en Prisma pero faltaba aquí
+  @Field(() => Service, { nullable: true })
+  product?: Service | null;
+
   // =========================
   // RELACIONES
   // =========================
   @Field(() => Payment, { nullable: true })
   payment?: Payment | null;
 
-  /**
-   * IMPORTANTE:
-   * Esto permite leer la review asociada a la orden
-   * (clave para mostrar reviews por provider)
-   */
   @Field(() => ProviderReview, { nullable: true })
   review?: ProviderReview | null;
 
