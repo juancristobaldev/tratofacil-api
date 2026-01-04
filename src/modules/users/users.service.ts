@@ -17,14 +17,29 @@ export class UserService {
 
   // Utilidad para serializar roles al estilo WordPress PHP
   private getWpCapabilities(role: Role): string {
-    const roleKey = role.toLowerCase();
-    return `a:1:{s:${roleKey.length}:"${roleKey}";b:1;}`;
+    let wpRole = 'subscriber';
+
+    if (role === Role.ADMIN) {
+      wpRole = 'administrator';
+    }
+
+    if (role === Role.PROVIDER) {
+      wpRole = 'vendor';
+    }
+
+    return `a:1:{s:${wpRole.length}:"${wpRole}";b:1;}`;
   }
 
   // Utilidad para deserializar roles
   private getRoleFromMeta(metaValue: string): Role {
-    if (metaValue.includes('admin')) return Role.ADMIN;
-    if (metaValue.includes('provider')) return Role.PROVIDER;
+    if (metaValue.includes('"administrator"')) {
+      return Role.ADMIN;
+    }
+
+    if (metaValue.includes('"vendor"')) {
+      return Role.PROVIDER;
+    }
+
     return Role.CLIENT;
   }
 
@@ -33,12 +48,15 @@ export class UserService {
     const capMeta = user.usermeta?.find(
       (m: any) => m.key === 'wp_capabilities',
     );
-    if (capMeta && capMeta.value) {
-      user.role = this.getRoleFromMeta(capMeta.value);
-    } else {
-      user.role = Role.CLIENT;
-    }
-    return user;
+
+    const role = capMeta?.value
+      ? this.getRoleFromMeta(capMeta.value)
+      : Role.CLIENT;
+
+    return {
+      ...user,
+      role,
+    };
   }
 
   async findAll() {
@@ -52,11 +70,24 @@ export class UserService {
   async findOne(id: number) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      include: { usermeta: true, provider: true },
+      include: {
+        usermeta: true,
+        provider: {
+          include: {
+            bank: true,
+          },
+        },
+      },
     });
 
+    console.log({ user });
+
     if (!user) throw new NotFoundException(`Usuario ID ${id} no encontrado`);
-    return this.mapUserRole(user);
+
+    const mapUser = this.mapUserRole(user);
+    console.log({ mapUser });
+
+    return { ...mapUser };
   }
 
   async create(input: RegisterInput) {

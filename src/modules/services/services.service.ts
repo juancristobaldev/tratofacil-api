@@ -1,4 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  CreateServiceInput,
+  UpdateServiceInput,
+} from 'src/graphql/entities/service.entity';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
@@ -8,11 +16,109 @@ export class ServicesService {
   /**
    * Utilidad para manejar BigInt de Prisma (convertir a number/string seguro)
    */
+
+  async create(input: CreateServiceInput, userId: number) {
+    // 1. Buscar la SUBCATEGORÍA REAL
+    const taxonomy = await this.prisma.wpTermTaxonomy.findFirst({
+      where: {
+        term_id: input.subCategoryId,
+        taxonomy: 'product_cat',
+      },
+      include: {
+        term: true,
+      },
+    });
+
+    if (!taxonomy) {
+      throw new NotFoundException('La subcategoría no existe');
+    }
+
+    const provider = await this.prisma.provider.findUnique({
+      where: {
+        userId: userId,
+      },
+    });
+
+    if (!provider) return;
+    // 2. Crear producto (wp_posts)
+    const now = new Date();
+
+    const product = await this.prisma.wpPost.create({
+      data: {
+        post_author: BigInt(provider.id),
+
+        post_date: now,
+        post_date_gmt: now,
+
+        post_content: input.description ?? '',
+        post_title: taxonomy.term.name,
+        post_excerpt: '',
+
+        post_status: 'publish',
+        comment_status: 'closed',
+        ping_status: 'closed',
+
+        post_password: '',
+        post_name: taxonomy.term.slug,
+
+        to_ping: '',
+        pinged: '',
+
+        post_modified: now,
+        post_modified_gmt: now,
+
+        post_content_filtered: '',
+        post_parent: BigInt(0),
+
+        guid: '',
+
+        menu_order: 0,
+        post_type: 'product',
+        post_mime_type: '',
+
+        comment_count: BigInt(0),
+      },
+    });
+
+    // 3. Vincular SOLO a la subcategoría
+    await this.prisma.wpTermRelationship.create({
+      data: {
+        object_id: product.ID,
+        term_taxonomy_id: taxonomy.term_taxonomy_id,
+      },
+    });
+
+    // 4. Metas del producto
+    await this.prisma.wpPostMeta.createMany({
+      data: [
+        {
+          post_id: product.ID,
+          meta_key: '_price',
+          meta_value: String(input.price),
+        },
+        {
+          post_id: product.ID,
+          meta_key: 'has_home_visit',
+          meta_value: input.hasHomeVisit ? 'true' : 'false',
+        },
+      ],
+    });
+
+    return {
+      id: Number(product.ID),
+      name: product.post_title,
+      slug: product.post_name,
+      description: product.post_content,
+      price: input.price,
+      hasHomeVisit: input.hasHomeVisit ?? false,
+    };
+  }
+
   private toInt(value: bigint | number): number {
     return Number(value);
   }
 
-  /**
+  /**c
    * Obtiene las subcategorías (Servicios) de una categoría padre,
    * incluyendo los proveedores que tienen productos publicados en ellas.
    */
@@ -111,12 +217,12 @@ export class ServicesService {
           const userIds = Array.from(providersMap.keys());
 
           const dbProviders = await this.prisma.provider.findMany({
-            where: { userId: { in: userIds } },
+            where: { id: { in: userIds } },
           });
 
           providers = dbProviders.map((p) => ({
             ...p,
-            price: providersMap.get(p.userId)?.price || 0,
+            price: providersMap.get(p.id)?.price || 0,
           }));
         }
 
@@ -147,6 +253,7 @@ export class ServicesService {
       include: { user: true },
     });
 
+    console.log({ provider });
     if (!provider) return null;
 
     const taxonomy = await this.prisma.wpTermTaxonomy.findFirst({
@@ -162,12 +269,14 @@ export class ServicesService {
     const product = await this.prisma.wpPost.findFirst({
       where: {
         ID: { in: postIds },
-        post_author: provider.user.id,
+        post_author: provider.id,
         post_type: 'product',
         post_status: 'publish',
       },
       include: { postmeta: true },
     });
+
+    console.log({ product });
 
     if (!product) return null;
 
@@ -194,5 +303,134 @@ export class ServicesService {
 
   async findAll() {
     return [];
+  }
+
+  async findByProvider(userId: number) {
+    const provider = await this.prisma.provider.findFirst({
+      where: {
+        userId,
+      },
+    });
+
+    if (!provider) return;
+
+    const posts = await this.prisma.wpPost.findMany({
+      where: {
+        post_author: BigInt(provider.id),
+        post_type: 'product',
+        post_status: 'publish',
+      },
+      include: {
+        postmeta: true,
+        termRelationships: {
+          include: {
+            taxonomy: true,
+          },
+        },
+      },
+    });
+
+    return posts.map((post) => {
+      const priceMeta = post.postmeta.find((m) => m.meta_key === '_price');
+
+      const taxonomy = post.termRelationships[0]?.taxonomy;
+
+      return {
+        id: Number(post.ID),
+        name: post.post_title,
+        description: post.post_content,
+        price: Number(priceMeta?.meta_value ?? 0),
+        categoryId: taxonomy ? Number(taxonomy.parent) : null,
+        subCategoryId: taxonomy ? Number(taxonomy.term_id) : null,
+      };
+    });
+  }
+
+  /* =========================
+     ACTUALIZAR SERVICIO
+  ========================= */
+
+  async update(serviceId: number, input: UpdateServiceInput, userId: number) {
+    const post = await this.prisma.wpPost.findUnique({
+      where: { ID: BigInt(serviceId) },
+    });
+
+    const provider = await this.prisma.provider.findFirst({
+      where: {
+        userId,
+      },
+    });
+
+    if (!provider) return;
+    if (!post || Number(post.post_author) !== provider.id) {
+      throw new ForbiddenException('No autorizado');
+    }
+
+    await this.prisma.wpPost.update({
+      where: { ID: BigInt(serviceId) },
+      data: {
+        post_content: input.description ?? post.post_content,
+      },
+    });
+
+    if (input.price !== undefined) {
+      const existingPrice = await this.prisma.wpPostMeta.findFirst({
+        where: {
+          post_id: BigInt(serviceId),
+          meta_key: '_price',
+        },
+      });
+
+      if (existingPrice) {
+        await this.prisma.wpPostMeta.update({
+          where: {
+            meta_id: existingPrice.meta_id,
+          },
+          data: {
+            meta_value: String(input.price),
+          },
+        });
+      } else {
+        await this.prisma.wpPostMeta.create({
+          data: {
+            post_id: BigInt(serviceId),
+            meta_key: '_price',
+            meta_value: String(input.price),
+          },
+        });
+      }
+    }
+
+    return {
+      id: serviceId,
+      price: input.price,
+      description: input.description,
+    };
+  }
+
+  /* =========================
+     ELIMINAR SERVICIO
+  ========================= */
+
+  async delete(serviceId: number, userId: number) {
+    const post = await this.prisma.wpPost.findUnique({
+      where: { ID: BigInt(serviceId) },
+    });
+
+    const provider = await this.prisma.provider.findFirst({
+      where: {
+        userId,
+      },
+    });
+
+    if (!provider) return;
+
+    if (!post || Number(post.post_author) !== provider.id) {
+      throw new ForbiddenException('No autorizado');
+    }
+
+    await this.prisma.wpPost.delete({
+      where: { ID: BigInt(serviceId) },
+    });
   }
 }

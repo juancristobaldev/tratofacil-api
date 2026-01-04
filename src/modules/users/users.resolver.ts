@@ -10,16 +10,40 @@ import {
   UpdateUserInput,
 } from 'src/graphql/entities/user.entity';
 import { Role } from 'src/graphql/enums/role.enum';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Resolver(() => User)
 export class UsersResolver {
-  constructor(private readonly usersService: UserService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly usersService: UserService,
+  ) {}
+
+  @Query(() => User, { nullable: true })
+  async publicProfile(
+    @Args('userId', { type: () => Int }) userId: number,
+  ): Promise<User | null> {
+    // Trae el usuario con su metadata y proveedor si exist
+
+    const provider = await this.prisma.provider.findFirst({
+      where: {
+        id: userId,
+      },
+    });
+    if (!provider) return null;
+
+    const user = await this.usersService.findOne(provider?.userId);
+
+    return {
+      ...user,
+    };
+  }
 
   @Query(() => User, { name: 'me' })
   @UseGuards(JwtAuthGuard)
   async me(@Context() context: any) {
     // sub es el ID del usuario
-    return this.usersService.findOne(Number(context.req.user.sub));
+    return this.usersService.findOne(Number(context.req.user.id));
   }
 
   @Query(() => [User], { name: 'users' })
@@ -34,11 +58,6 @@ export class UsersResolver {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async findOne(@Args('id', { type: () => Int }) id: number) {
     return this.usersService.findOne(id);
-  }
-
-  @Mutation(() => User)
-  async register(@Args('input') input: RegisterInput) {
-    return this.usersService.create(input);
   }
 
   @Mutation(() => User)

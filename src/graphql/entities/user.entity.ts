@@ -16,7 +16,9 @@ import {
 import { Provider } from './provider.entity';
 import { Role } from '../enums/role.enum';
 
-// Registrar el Enum para que GraphQL lo entienda
+/* ======================
+   REGISTRAR ENUM
+====================== */
 
 @ObjectType()
 export class UserMeta {
@@ -29,7 +31,6 @@ export class UserMeta {
   @Field()
   key: string;
 
-  // CORRECCIÓN AQUÍ: Agregamos () => String explícito
   @Field(() => String, { nullable: true })
   value?: string | null;
 }
@@ -63,19 +64,19 @@ export class User {
   @Field()
   activationKey: string;
 
-  // CORRECCIÓN: Agregamos () => Role explícito
   @Field(() => Role, { nullable: true })
   role?: Role;
 
-  @Field(() => [UserMeta], { nullable: 'itemsAndList' })
+  @Field(() => [UserMeta], { nullable: true })
   usermeta?: UserMeta[];
 
-  // CORRECCIÓN: Agregamos () => Provider explícito
   @Field(() => Provider, { nullable: true })
   provider?: Provider | null;
 }
 
-// --- INPUTS ---
+/* ======================
+   INPUTS
+====================== */
 
 @InputType()
 export class RegisterInput {
@@ -84,18 +85,14 @@ export class RegisterInput {
   email: string;
 
   @Field()
-  @IsNotEmpty()
   @MinLength(8)
   password: string;
 
-  // CORRECCIÓN: Agregamos () => String explícito en opcionales
   @Field(() => String, { nullable: true })
-  @IsString()
   @IsOptional()
   username?: string;
 
   @Field(() => String, { nullable: true })
-  @IsString()
   @IsOptional()
   displayName?: string;
 
@@ -104,7 +101,6 @@ export class RegisterInput {
   role: Role;
 
   @Field(() => String, { nullable: true })
-  @IsString()
   @IsOptional()
   phone?: string;
 }
@@ -116,16 +112,13 @@ export class UpdateUserInput {
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsEmail()
   email?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   displayName?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   phone?: string;
 }

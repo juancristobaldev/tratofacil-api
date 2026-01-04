@@ -28,6 +28,10 @@ export class Service {
   @Field(() => Float, { nullable: true })
   commission?: number; // Calculado o desde meta
 
+  @Field(() => Int, { nullable: true })
+  categoryId?: number; // Calculado o desde meta
+  @Field(() => Int, { nullable: true })
+  subCategoryId?: number; // Calculado o desde meta
   @Field(() => Float, { nullable: true })
   netAmount?: number; // Calculado
 
@@ -36,19 +40,59 @@ export class Service {
 }
 
 @ObjectType()
+export class ServiceProvider {
+  @Field(() => Int)
+  id: number;
+
+  @Field()
+  name: string;
+
+  @Field(() => String, { nullable: true })
+  location?: string;
+
+  @Field(() => Float)
+  price: number;
+}
+
+@ObjectType()
+export class ServiceByCategory {
+  @Field(() => Int)
+  id: number;
+
+  @Field()
+  name: string;
+
+  @Field()
+  slug: string;
+
+  @Field({ nullable: true })
+  description?: string;
+
+  @Field(() => Float)
+  price: number; // precio mínimo
+
+  @Field(() => Boolean)
+  hasHomeVisit: boolean;
+
+  @Field(() => [ServiceProvider])
+  providers: ServiceProvider[];
+}
+
+@ObjectType()
 export class ServiceDetail extends Service {
   @Field(() => Provider)
   provider: Provider;
 }
 
-// --- INPUTS ---
-
 @InputType()
 export class CreateServiceInput {
-  @Field()
-  @IsNotEmpty()
-  @IsString()
-  name: string;
+  @Field(() => Int)
+  @IsInt()
+  categoryId: number; // 👈 categoría PADRE
+
+  @Field(() => Int)
+  @IsInt()
+  subCategoryId: number; // 👈 categoría HIJA (servicio real)
 
   @Field({ nullable: true })
   @IsOptional()
@@ -59,23 +103,13 @@ export class CreateServiceInput {
   @IsNumber()
   price: number;
 
-  @Field(() => Int, { nullable: true })
+  @Field(() => Boolean, { nullable: true })
   @IsOptional()
-  @IsInt()
-  categoryId?: number; // Para vincular con wp_terms
+  hasHomeVisit?: boolean;
 }
 
 @InputType()
 export class UpdateServiceInput {
-  @Field(() => Int)
-  @IsInt()
-  id: number;
-
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsString()
-  name?: string;
-
   @Field({ nullable: true })
   @IsOptional()
   @IsString()

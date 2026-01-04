@@ -7,10 +7,11 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { User } from './user.entity';
+import { Order } from './order.entity';
 
-// =========================================================
-// OUTPUTS
-// =========================================================
+/* ======================
+   OUTPUTS
+====================== */
 
 @ObjectType()
 export class BankAccount {
@@ -26,13 +27,97 @@ export class BankAccount {
   @Field()
   accountType: string;
 
-  // CORRECCIÓN: Se agrega () => String explícito
   @Field(() => String, { nullable: true })
   rut?: string | null;
 
-  // CORRECCIÓN: Se agrega () => String explícito
   @Field(() => String, { nullable: true })
   email?: string | null;
+}
+
+@ObjectType()
+export class ProviderReview {
+  // =========================
+  // IDENTIDAD
+  // =========================
+  @Field(() => Int)
+  id: number;
+
+  // =========================
+  // PROVIDER
+  // =========================
+
+  // =========================
+  // CLIENTE
+  // =========================
+  @Field(() => Int)
+  clientId: number;
+
+  @Field(() => User)
+  client: User;
+
+  // =========================
+  // ORDEN (REVIEW VERIFICADA)
+  // =========================
+  @Field(() => Int, { nullable: true })
+  orderId?: number | null;
+
+  @Field(() => Order, { nullable: true })
+  order?: Order | null;
+
+  // =========================
+  // CONTENIDO DE LA REVIEW
+  // =========================
+  @Field(() => Int)
+  rating: number; // 1 a 5
+
+  @Field(() => String, { nullable: true })
+  comment?: string | null;
+
+  // =========================
+  // TIMESTAMP
+  // =========================
+  @Field()
+  createdAt: Date;
+}
+
+@ObjectType()
+export class ProviderCertificate {
+  // =========================
+  // IDENTIDAD
+  // =========================
+  @Field(() => Int)
+  id: number;
+
+  // =========================
+  // PROVIDER
+  // =========================
+
+  // =========================
+  // DATOS DEL CERTIFICADO
+  // =========================
+  @Field()
+  title: string;
+
+  @Field(() => String, { nullable: true })
+  institution?: string | null;
+
+  @Field(() => Int, { nullable: true })
+  year?: number | null;
+
+  @Field()
+  fileUrl: string;
+
+  // =========================
+  // VERIFICACIÓN
+  // =========================
+  @Field()
+  verified: boolean;
+
+  // =========================
+  // TIMESTAMP
+  // =========================
+  @Field()
+  createdAt: Date;
 }
 
 @ObjectType()
@@ -51,8 +136,11 @@ export class Provider {
 
   @Field()
   slug: string;
+  @Field(() => [ProviderReview], { nullable: true })
+  reviews?: ProviderReview[];
+  @Field(() => [ProviderCertificate], { nullable: true })
+  certificates?: ProviderCertificate[];
 
-  // CORRECCIÓN: Agregamos () => String a todos los opcionales para evitar futuros errores
   @Field(() => String, { nullable: true })
   location?: string | null;
 
@@ -69,7 +157,7 @@ export class Provider {
   bank?: BankAccount | null;
 
   @Field(() => User, { nullable: true })
-  user?: User;
+  user?: User | null;
 
   @Field()
   createdAt: Date;
@@ -79,8 +167,12 @@ export class Provider {
 }
 
 // =========================================================
-// INPUTS
+// PROVIDER REVIEW ENTITY
 // =========================================================
+
+/* ======================
+   INPUTS
+====================== */
 
 @InputType()
 export class BankAccountInput {
@@ -99,15 +191,12 @@ export class BankAccountInput {
   @IsString()
   accountType: string;
 
-  // CORRECCIÓN: También explícito en los Inputs por seguridad
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   rut?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   email?: string;
 }
 
@@ -120,22 +209,18 @@ export class CreateProviderInput {
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   location?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   logoUrl?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   bio?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   phone?: string;
 
   @Field(() => BankAccountInput, { nullable: true })

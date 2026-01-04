@@ -6,79 +6,80 @@ import {
   InputType,
   registerEnumType,
 } from '@nestjs/graphql';
-import {
-  IsNotEmpty,
-  IsInt,
-  IsNumber,
-  IsArray,
-  ValidateNested,
-  Min,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsInt, Min } from 'class-validator';
 import { OrderStatus } from '../enums/order-status.enum';
-import { PaymentProvider } from '../enums/payment-provider.enum';
-import { PaymentStatus } from '../enums/payment-status.enum';
 import { User } from './user.entity';
+import { Payment } from './payment.entity';
+import { ProviderReview } from './provider.entity';
 
-// =========================================================
-// 1. ENTIDAD PAYMENT (Mapeo Payment)
-// =========================================================
+/* ======================
+   REGISTRAR ENUM
+====================== */
+
 @ObjectType()
-export class Payment {
+export class OrderProduct {
   @Field(() => Int)
   id: number;
 
-  @Field(() => Int)
-  orderId: number;
-
-  @Field(() => Float)
-  amount: number;
-
-  @Field(() => PaymentProvider)
-  provider: PaymentProvider;
-
-  @Field(() => PaymentStatus)
-  status: PaymentStatus;
-
-  @Field({ nullable: true })
-  transactionId?: string; // Token de Webpay o ID de transferencia
-
   @Field()
-  createdAt: Date;
-
-  @Field()
-  updatedAt: Date;
+  title: string;
 }
 
-// =========================================================
-// 2. ENTIDAD ORDER (Mapeo Order)
-// =========================================================
 @ObjectType()
 export class Order {
+  // =========================
+  // IDENTIDAD
+  // =========================
   @Field(() => Int)
   id: number;
 
+  // =========================
+  // CLIENTE
+  // =========================
   @Field(() => Int)
   clientId: number;
 
+  @Field(() => User)
+  client: User;
+
+  // =========================
+  // DATOS DE LA ORDEN
+  // =========================
   @Field(() => Float)
   total: number;
 
   @Field(() => OrderStatus)
   status: OrderStatus;
 
+  // =========================
+  // VINCULACIÓN WOOCOMMERCE
+  // =========================
   @Field(() => Int, { nullable: true })
-  wcOrderId?: number; // Referencia al pedido real en WooCommerce
+  wcOrderId?: number | null;
 
-  @Field({ nullable: true })
-  wcOrderKey?: string; // Clave para checkout externo si fuera necesario
+  @Field(() => String, { nullable: true })
+  wcOrderKey?: string | null;
 
-  @Field(() => User)
-  client: User;
+  @Field(() => Int, { nullable: true })
+  productId?: number | null;
 
+  // =========================
+  // RELACIONES
+  // =========================
   @Field(() => Payment, { nullable: true })
-  payment?: Payment;
+  payment?: Payment | null;
 
+  /**
+   * IMPORTANTE:
+   * Esto permite leer la review asociada a la orden
+   * (clave para mostrar reviews por provider)
+   */
+  @Field(() => ProviderReview, { nullable: true })
+  review?: ProviderReview | null;
+
+  // =========================
+  // TIMESTAMPS
+  // =========================
   @Field()
   createdAt: Date;
 
@@ -86,14 +87,15 @@ export class Order {
   updatedAt: Date;
 }
 
-// =========================================================
-// 3. INPUTS PARA CARRITO Y ORDEN
-// =========================================================
+/* ======================
+   INPUTS
+====================== */
+
 @InputType()
 export class OrderItemInput {
   @Field(() => Int)
   @IsInt()
-  serviceId: number; // ID del WpPost (Producto)
+  serviceId: number;
 
   @Field(() => Int)
   @IsInt()
@@ -101,20 +103,12 @@ export class OrderItemInput {
   quantity: number;
 }
 
-registerEnumType(PaymentProvider, { name: 'PaymentProvider' });
-
 @InputType()
 export class CreateOrderInput {
-  @Field(() => Int) // O String si lo parseas en el servicio, pero Int es mejor si el ID es numérico
+  @Field(() => Int)
   productId: number;
-
-  @Field(() => PaymentProvider)
-  paymentProvider: PaymentProvider;
 }
 
-// =========================================================
-// 4. ENTIDAD DE RESPUESTA WEBPAY (Helper)
-// =========================================================
 @ObjectType()
 export class WebpayResponse {
   @Field()

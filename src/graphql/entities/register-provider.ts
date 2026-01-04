@@ -1,43 +1,59 @@
 import { InputType, Field, Int } from '@nestjs/graphql';
-import { IsNotEmpty, IsString, IsOptional } from 'class-validator';
+import { CredentialsInput } from '../inputs/auth.input';
+import { IsOptional } from 'class-validator';
 
 @InputType()
 export class IdentityInput {
   @Field()
-  @IsNotEmpty()
   firstName: string;
 
   @Field()
-  @IsNotEmpty()
   lastName: string;
 
   @Field()
-  @IsNotEmpty()
+  company: string;
+
+  @Field()
+  rut: string;
+
+  @Field()
   phone: string;
 }
 
 @InputType()
-export class BankRegistrationInput {
+export class BankInput {
   @Field()
-  @IsString()
   bankName: string;
 
   @Field()
-  @IsString()
   accountNumber: string;
 
   @Field()
-  @IsString()
   accountType: string;
 }
 
 @InputType()
+export class ServicesInput {
+  @Field(() => [String])
+  categories: string[];
+}
+
+@InputType()
 export class ProviderRegistrationInput {
+  @Field(() => CredentialsInput)
+  credentials: CredentialsInput;
+
   @Field(() => IdentityInput)
   identity: IdentityInput;
 
-  @Field(() => BankRegistrationInput)
-  bank: BankRegistrationInput;
+  @Field(() => BankInput)
+  bank: BankInput;
+
+  @Field(() => ServicesInput)
+  services: ServicesInput;
+
+  @Field({ nullable: true })
+  providerName?: string;
 }
 
 @InputType()

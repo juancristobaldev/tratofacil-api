@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { WordpressService } from './wordpress.service';
 import { HttpModule } from '@nestjs/axios';
+import { WordpressController } from './wordpress.controller';
 
 @Global()
 @Module({
@@ -11,6 +12,7 @@ import { HttpModule } from '@nestjs/axios';
     }),
   ], // Necesario para que WordpressService use this.httpService
   providers: [WordpressService],
-  exports: [WordpressService], // <--- 4. Crucial: Debes exportarlo para que otros lo usen
+  exports: [WordpressService],
+  controllers: [WordpressController], // <--- 4. Crucial: Debes exportarlo para que otros lo usen
 })
 export class WordpressModule {}

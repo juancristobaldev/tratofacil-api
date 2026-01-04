@@ -49,8 +49,11 @@ export class ProvidersResolver {
     @Context() context: any,
   ) {
     // Obtenemos el ID del usuario desde el Token validado
-    const userId = Number(context.req.user.sub);
 
+    console.log(context.req.user);
+    const userId = Number(context.req.user.id);
+
+    console.log({ input });
     return this.providersService.register(userId, input);
   }
 
@@ -86,7 +89,7 @@ export class ProvidersResolver {
   @Query(() => Provider, { name: 'myProvider', nullable: true })
   @UseGuards(JwtAuthGuard)
   async myProvider(@Context() context: any) {
-    const userId = Number(context.req.user.sub);
+    const userId = Number(context.req.user.id);
     return this.providersService.findByUserId(userId);
   }
 

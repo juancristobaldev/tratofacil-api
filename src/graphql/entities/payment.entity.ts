@@ -1,8 +1,21 @@
-import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
+import {
+  ObjectType,
+  Field,
+  Int,
+  Float,
+  InputType,
+  registerEnumType,
+} from '@nestjs/graphql';
+import { IsEnum, IsInt, IsNumber } from 'class-validator';
 import { PaymentProvider } from '../enums/payment-provider.enum';
 import { PaymentStatus } from '../enums/payment-status.enum';
 import { Order } from './order.entity';
-import { IsEnum, IsInt, IsNumber } from 'class-validator';
+
+/* ======================
+   REGISTRAR ENUMS
+====================== */
+registerEnumType(PaymentProvider, { name: 'PaymentProvider' });
+registerEnumType(PaymentStatus, { name: 'PaymentStatus' });
 
 @ObjectType()
 export class Payment {
@@ -13,7 +26,7 @@ export class Payment {
   orderId: number;
 
   @Field(() => Order, { nullable: true })
-  order?: Order;
+  order?: Order | null;
 
   @Field(() => Float)
   amount: number;
@@ -24,12 +37,19 @@ export class Payment {
   @Field(() => PaymentStatus)
   status: PaymentStatus;
 
-  @Field(() => Date, { nullable: true })
-  createdAt?: Date;
+  @Field(() => String, { nullable: true })
+  transactionId?: string | null;
 
-  @Field(() => Date, { nullable: true })
-  updatedAt?: Date;
+  @Field()
+  createdAt: Date;
+
+  @Field()
+  updatedAt: Date;
 }
+
+/* ======================
+   INPUT
+====================== */
 
 @InputType()
 export class CreatePaymentInput {

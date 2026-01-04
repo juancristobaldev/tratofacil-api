@@ -46,8 +46,8 @@ export class ProvidersService {
     if (existing) throw new BadRequestException('El usuario ya es proveedor');
 
     // 3. Crear Proveedor y Banco en transacción
-    const fullName = `${identity.firstName} ${identity.lastName}`;
-    let slug = this.generateSlug(fullName);
+    const fullName = `${identity.company}`;
+    let slug = this.generateSlug(identity.company);
 
     // Pequeña validación de slug único
     const slugCheck = await this.prisma.provider.findUnique({

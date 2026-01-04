@@ -1,6 +1,12 @@
 import { InputType, Field } from '@nestjs/graphql';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
-import { Role } from '../enums/role.enum'; // Asegúrate de que este path sea correcto según tu estructura
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
+import { Role } from '../enums/role.enum';
 
 @InputType()
 export class LoginInput {
@@ -29,8 +35,19 @@ export class RegisterInput {
   @IsString()
   phone?: string;
 
-  // Opcional: si quieres permitir que se registren con un rol específico desde el front
   @Field(() => Role, { nullable: true })
   @IsOptional()
   role?: Role;
+}
+
+// --- NUEVO ---
+@InputType()
+export class CredentialsInput {
+  @Field()
+  @IsEmail()
+  email: string;
+
+  @Field()
+  @IsNotEmpty()
+  password: string;
 }

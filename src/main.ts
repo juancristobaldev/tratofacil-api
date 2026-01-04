@@ -1,15 +1,22 @@
 // main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
+import {
+  ExpressAdapter,
+  NestExpressApplication,
+} from '@nestjs/platform-express';
 import express from 'express';
+import bodyParser from 'body-parser';
 
 async function bootstrap() {
   const server = express(); // instancia de Express
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
-    new ExpressAdapter(server)
+    new ExpressAdapter(server),
   );
+
+  app.use(bodyParser.json({ limit: '10mb' }));
+  app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
   // Habilitar CORS solo para localhost:3000
   app.enableCors({

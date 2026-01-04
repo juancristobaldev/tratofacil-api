@@ -1,4 +1,4 @@
-import { Resolver, Mutation, Args, Int, Context } from '@nestjs/graphql';
+import { Resolver, Mutation, Args, Int, Context, Query } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PaymentService } from './payments.service';
@@ -7,6 +7,7 @@ import {
   CreateOrderInput,
   WebpayResponse,
 } from 'src/graphql/entities/order.entity';
+import { OrderStatus } from 'src/graphql/enums/order-status.enum';
 
 @Resolver()
 export class PaymentsResolver {
@@ -15,14 +16,38 @@ export class PaymentsResolver {
   /**
    * Crear Orden y Pago (Paso 1)
    */
+
+  @Query(() => [Order])
+  getOrdersByProvider(
+    @Args('providerId', { type: () => Int }) providerId: number,
+  ) {
+    return this.paymentService.getOrdersByProviderId(providerId);
+  }
+
+  // =========================
+  // MUTATION
+  // =========================
+  @Mutation(() => Order)
+  updateOrderStatus(
+    @Args('orderId', { type: () => Int }) orderId: number,
+    @Args('status', { type: () => OrderStatus }) status: OrderStatus,
+    @Args('providerId', { type: () => Int }) providerId: number,
+  ) {
+    return this.paymentService.updateOrderStatus(orderId, status, providerId);
+  }
+
   @Mutation(() => Order)
   @UseGuards(JwtAuthGuard)
   async createOrder(
     @Args('input') input: CreateOrderInput,
     @Context() context: any,
   ) {
-    const userId = Number(context.req.user.sub);
-    return this.paymentService.createOrderWithPayment(userId, input);
+    const userId = Number(context.req.user.id);
+    const { order, payment } = await this.paymentService.createOrderWithPayment(
+      userId,
+      input,
+    );
+    return order;
   }
 
   /**

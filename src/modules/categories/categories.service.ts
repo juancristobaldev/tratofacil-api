@@ -34,16 +34,49 @@ export class CategoryService {
   /**
    * Listar Categorías (Lectura directa Prisma)
    */
-  async list() {
+
+  async listWithParent() {
     const taxonomies = await this.prisma.wpTermTaxonomy.findMany({
-      where: { taxonomy: 'product_cat' },
+      where: {
+        taxonomy: 'product_cat',
+        parent: {
+          not: 0, // 👈 SOLO subcategorías
+        },
+      },
       include: {
         term: true,
       },
     });
 
     return taxonomies.map((t) => ({
-      id: Number(t.term_id), // Conversión de BigInt
+      id: Number(t.term_id),
+      name: t.term.name,
+      slug: t.term.slug,
+      description: t.description,
+      parentId: Number(t.parent),
+      count: Number(t.count),
+    }));
+  }
+
+  async list() {
+    // Trae todas las categorías product_cat
+    const taxonomies = await this.prisma.wpTermTaxonomy.findMany({
+      where: { taxonomy: 'product_cat' },
+      include: { term: true },
+    });
+
+    // Obtener los IDs que aparecen como parent
+    const parentIds = new Set(
+      taxonomies.map((t) => Number(t.parent)).filter((parent) => parent !== 0),
+    );
+
+    // Filtrar solo categorías que tengan hijos
+    const categoriesWithChildren = taxonomies.filter((t) =>
+      parentIds.has(Number(t.term_id)),
+    );
+
+    return categoriesWithChildren.map((t) => ({
+      id: Number(t.term_id),
       name: t.term.name,
       slug: t.term.slug,
       description: t.description,
