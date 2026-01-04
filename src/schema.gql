@@ -3,7 +3,10 @@
 # ------------------------------------------------------
 
 type AuthType {
+  """Token JWT para sesiones autorizadas"""
   accessToken: String!
+
+  """Información del usuario autenticado"""
   user: User!
 }
 
@@ -11,9 +14,12 @@ type BankAccount {
   accountNumber: String!
   accountType: String!
   bankName: String!
+  createdAt: DateTime!
   email: String
   id: Int!
+  providerId: Int!
   rut: String
+  updatedAt: DateTime!
 }
 
 input BankAccountInput {
@@ -24,17 +30,13 @@ input BankAccountInput {
   rut: String
 }
 
-input BankInput {
-  accountNumber: String!
-  accountType: String!
-  bankName: String!
-}
-
 type Category {
   description: String
   id: Int!
   name: String!
   parentId: Int
+
+  """Servicios asociados a esta categoría"""
   services: [Service]
   slug: String!
 }
@@ -47,15 +49,19 @@ input CreateCategoryInput {
 }
 
 input CreateOrderInput {
-  productId: Int!
+  serviceProviderId: Int!
+  total: Float!
+  wcOrderId: Int
+  wcOrderKey: String
 }
 
 input CreateServiceInput {
-  categoryId: Int!
+  categoryId: Int
   description: String
-  hasHomeVisit: Boolean
-  price: Float!
-  subCategoryId: Int!
+  hasHomeVisit: Boolean!
+  name: String!
+  price: Int!
+  slug: String!
 }
 
 input CredentialsInput {
@@ -69,7 +75,7 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 scalar DateTime
 
 input IdentityInput {
-  company: String!
+  company: String
   firstName: String!
   lastName: String!
   phone: String!
@@ -82,32 +88,45 @@ input LoginInput {
 }
 
 type Mutation {
-  confirmEmailAndCreateUser(code: String!, credentials: CredentialsInput!, identity: IdentityInput!): String!
+  """Confirma el código y crea el perfil de usuario + proveedor"""
+  confirmEmailAndCreateUser(code: String!, credentials: CredentialsInput!, identity: IdentityInput!): AuthType!
   confirmPayment(token: String!): Order!
   createCategory(input: CreateCategoryInput!): Category!
   createOrder(input: CreateOrderInput!): Order!
-  createService(input: CreateServiceInput!): Service!
+  createService(input: CreateServiceInput!): ServiceProvider!
+  deleteCategory(id: Int!): Category!
   deleteService(id: Int!): Boolean!
+
+  """Verifica disponibilidad de email y envía código de validación"""
   findCredentialsAfterSendEmail(input: CredentialsInput!): Boolean!
   initiatePayment(orderId: Int!, returnUrl: String!): WebpayResponse!
+
+  """Inicia sesión y retorna el token con la info del usuario"""
   login(loginInput: LoginInput!): AuthType!
-  register(input: RegisterInput!): AuthType!
-  registerProvider(input: ProviderRegistrationInput!): Provider!
-  updateBank(updateBankInput: UpdateBankInput!): BankAccount!
+
+  """Registra un usuario nuevo (Cliente por defecto)"""
+  register(input: RegisterUserInput!): AuthType!
+  registerProvider(input: UpdateProviderInput!): Provider!
+  updateBank(input: BankAccountInput!, providerId: Int!): BankAccount!
+  updateCategory(id: Int!, input: UpdateCategoryInput!): Category!
   updateOrderStatus(orderId: Int!, providerId: Int!, status: OrderStatus!): Order!
-  updateProvider(updateProviderInput: UpdateProviderInput!): Provider!
-  updateService(id: Int!, input: UpdateServiceInput!): Service!
+  updateProvider(id: Int!, input: UpdateProviderInput!): Provider!
+  updateService(id: Int!, input: UpdateServiceInput!): ServiceProvider!
   updateUser(input: UpdateUserInput!): User!
 }
 
 type Order {
+  """Cliente que realizó la orden"""
   client: User!
   clientId: Int!
   createdAt: DateTime!
   id: Int!
   payment: Payment
-  productId: Int
   review: ProviderReview
+
+  """Servicio específico contratado"""
+  serviceProvider: ServiceProvider
+  serviceProviderId: Int
   status: OrderStatus!
   total: Float!
   updatedAt: DateTime!
@@ -129,7 +148,9 @@ type Payment {
   amount: Float!
   createdAt: DateTime!
   id: Int!
-  order: Order
+
+  """Orden asociada a este pago"""
+  order: Order!
   orderId: Int!
   provider: PaymentProvider!
   status: PaymentStatus!
@@ -151,14 +172,15 @@ enum PaymentStatus {
 type Provider {
   bank: BankAccount
   bio: String
-  certificates: [ProviderCertificate!]
+  certificates: [ProviderCertificate]
   createdAt: DateTime!
   id: Int!
   location: String
   logoUrl: String
   name: String!
   phone: String
-  reviews: [ProviderReview!]
+  reviews: [ProviderReview]
+  services: [ServiceProvider]
   slug: String!
   updatedAt: DateTime!
   user: User
@@ -171,17 +193,10 @@ type ProviderCertificate {
   fileUrl: String!
   id: Int!
   institution: String
+  providerId: Int!
   title: String!
   verified: Boolean!
   year: Int
-}
-
-input ProviderRegistrationInput {
-  bank: BankInput!
-  credentials: CredentialsInput!
-  identity: IdentityInput!
-  providerName: String
-  services: ServicesInput!
 }
 
 type ProviderReview {
@@ -192,15 +207,16 @@ type ProviderReview {
   id: Int!
   order: Order
   orderId: Int
+  providerId: Int!
   rating: Int!
 }
 
 type Query {
   categories: [Category!]!
-  categoriesWithParent: [Category!]!
   category(id: Int!): Category!
   getOrdersByProvider(providerId: Int!): [Order!]!
   getServicesProvider(providerId: Int!): [Service!]!
+  mainCategories: [Category!]!
   me: User!
   myProvider: Provider
   myServices: [Service!]!
@@ -209,15 +225,15 @@ type Query {
   publicProfile(userId: Int!): User
   serviceDetail(providerId: Int!, serviceId: Int!): ServiceDetail!
   servicesByCategory(categorySlug: String!): [ServiceByCategory!]!
+  subCategories: [Category!]!
   user(id: Int!): User
   users: [User!]!
 }
 
-input RegisterInput {
+input RegisterUserInput {
   displayName: String
   email: String!
   password: String!
-  phone: String
   role: Role! = CLIENT
   username: String
 }
@@ -230,58 +246,58 @@ enum Role {
 }
 
 type Service {
+  category: Category
   categoryId: Int
-  commission: Float
   description: String
-  hasHomeVisit: Boolean!
   id: Int!
   name: String!
-  netAmount: Float
-  price: Float
+  serviceProviders: [ServiceProvider]
   slug: String!
-  subCategoryId: Int
 }
 
 type ServiceByCategory {
-  description: String
-  hasHomeVisit: Boolean!
   id: Int!
   name: String!
-  price: Float!
   providers: [ServiceProvider!]!
   slug: String!
 }
 
 type ServiceDetail {
+  category: Category
   categoryId: Int
   commission: Float
   description: String
-  hasHomeVisit: Boolean!
+  hasHomeVisit: Boolean
   id: Int!
   name: String!
   netAmount: Float
   price: Float
-  provider: Provider!
+  provider: Provider
+  serviceProviders: [ServiceProvider]
   slug: String!
-  subCategoryId: Int
 }
 
 type ServiceProvider {
+  commission: Float
+  description: String
+  hasHomeVisit: Boolean!
   id: Int!
-  location: String
-  name: String!
-  price: Float!
+  netAmount: Float
+  orders: [Order]
+  price: Float
+  provider: Provider
+  providerId: Int!
+  service: Service
+  serviceId: Int!
+  slug: String!
 }
 
-input ServicesInput {
-  categories: [String!]!
-}
-
-input UpdateBankInput {
-  accountNumber: String
-  accountType: String
-  bankId: Int!
-  bankName: String
+input UpdateCategoryInput {
+  description: String
+  id: Int!
+  name: String
+  parentId: Int
+  slug: String
 }
 
 input UpdateProviderInput {
@@ -292,18 +308,23 @@ input UpdateProviderInput {
   logoUrl: String
   name: String!
   phone: String
+  rut: String!
 }
 
 input UpdateServiceInput {
+  categoryId: Int
   description: String
-  price: Float
+  id: Int!
+  name: String
+  price: Int!
 }
 
 input UpdateUserInput {
   displayName: String
   email: String
   id: Int!
-  phone: String
+  nicename: String
+  url: String
 }
 
 type User {
@@ -312,20 +333,14 @@ type User {
   email: String!
   id: Int!
   nicename: String!
+  orders: [Order]
   provider: Provider
   registered: DateTime!
+  reviews: [ProviderReview]
   role: Role
   status: Int!
   url: String!
-  usermeta: [UserMeta!]
   username: String!
-}
-
-type UserMeta {
-  key: String!
-  umeta_id: Int!
-  userId: Int!
-  value: String
 }
 
 type WebpayResponse {

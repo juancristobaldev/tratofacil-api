@@ -1,125 +1,83 @@
+import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
+import { CategoryService } from './categories.service';
 import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
-import {
+  Category,
   CreateCategoryInput,
   UpdateCategoryInput,
 } from 'src/graphql/entities/category.entity';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { Role } from 'src/graphql/enums/role.enum';
 
-@Injectable()
-export class CategoryService {
-  constructor(private readonly prisma: PrismaService) {}
+@Resolver(() => Category)
+export class CategoriesResolver {
+  constructor(private readonly categoryService: CategoryService) {}
 
   /**
-   * Crear Rubro / Categoría
-   * Totalmente nativo, sin dependencias de WordPress
+   * Obtener todas las categorías y rubros
    */
-  async create(data: CreateCategoryInput) {
-    // Verificar si el slug ya existe para evitar errores de base de datos
-    const existing = await this.prisma.category.findUnique({
-      where: { slug: data.slug },
-    });
-
-    if (existing) {
-      throw new ConflictException(
-        `La categoría con el slug '${data.slug}' ya existe.`,
-      );
-    }
-
-    return this.prisma.category.create({
-      data: {
-        name: data.name,
-        slug: data.slug,
-        description: data.description,
-        parentId: data.parentId,
-      },
-    });
+  @Query(() => [Category], { name: 'categories' })
+  async getCategories() {
+    return this.categoryService.list();
   }
 
   /**
-   * Listar Categorías (Padres e Hijas)
+   * Obtener solo categorías principales (Rubros)
    */
-  async list() {
-    return this.prisma.category.findMany({
-      include: {
-        services: true, // Incluye servicios asociados si es necesario
-      },
-      orderBy: { name: 'asc' },
-    });
+  @Query(() => [Category], { name: 'mainCategories' })
+  async getMainCategories() {
+    return this.categoryService.listMainCategories();
   }
 
   /**
-   * Listar SOLO subcategorías (las que tienen un padre)
+   * Obtener solo subcategorías (Servicios del catálogo)
    */
-  async listSubcategories() {
-    return this.prisma.category.findMany({
-      where: {
-        parentId: {
-          not: null,
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
+  @Query(() => [Category], { name: 'subCategories' })
+  async getSubcategories() {
+    return this.categoryService.listSubcategories();
   }
 
   /**
-   * Listar SOLO categorías principales (las que no tienen padre)
+   * Obtener una categoría específica por ID
    */
-  async listMainCategories() {
-    return this.prisma.category.findMany({
-      where: {
-        parentId: null,
-      },
-      orderBy: { name: 'asc' },
-    });
+  @Query(() => Category, { name: 'category' })
+  async getCategory(@Args('id', { type: () => Int }) id: number) {
+    return this.categoryService.findById(id);
   }
 
   /**
-   * Buscar por ID
+   * Crear una nueva categoría
+   * Protegido: Solo administradores pueden crear categorías en el catálogo
    */
-  async findById(id: number) {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-      include: {
-        services: true,
-      },
-    });
-
-    if (!category) {
-      throw new NotFoundException(`Categoría con ID ${id} no encontrada`);
-    }
-
-    return category;
+  @Mutation(() => Category)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async createCategory(@Args('input') input: CreateCategoryInput) {
+    return this.categoryService.create(input);
   }
 
   /**
-   * Actualizar Categoría
+   * Actualizar una categoría existente
    */
-  async update(id: number, data: UpdateCategoryInput) {
-    await this.findById(id); // Validar existencia
-
-    return this.prisma.category.update({
-      where: { id },
-      data: {
-        name: data.name,
-        slug: data.slug,
-        description: data.description,
-        parentId: data.parentId,
-      },
-    });
+  @Mutation(() => Category)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async updateCategory(
+    @Args('id', { type: () => Int }) id: number,
+    @Args('input') input: UpdateCategoryInput,
+  ) {
+    return this.categoryService.update(id, input);
   }
 
   /**
-   * Eliminar Categoría
+   * Eliminar una categoría
    */
-  async delete(id: number) {
-    await this.findById(id);
-
-    return this.prisma.category.delete({
-      where: { id },
-    });
+  @Mutation(() => Category)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async deleteCategory(@Args('id', { type: () => Int }) id: number) {
+    return this.categoryService.delete(id);
   }
 }

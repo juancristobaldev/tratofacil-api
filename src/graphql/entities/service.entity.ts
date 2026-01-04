@@ -44,11 +44,11 @@ export class ServiceProvider {
   hasHomeVisit: boolean;
 
   // RELACIONES
-  @Field(() => Service)
-  service: Service;
+  @Field(() => Service, { nullable: true })
+  service?: Service | null;
 
-  @Field(() => Provider)
-  provider: Provider;
+  @Field(() => Provider, { nullable: true })
+  provider?: Provider | null;
 
   @Field(() => [Order], { nullable: 'itemsAndList' })
   orders?: Order[];
@@ -191,4 +191,22 @@ export class LinkServiceProviderInput {
   @IsOptional()
   @IsString()
   description?: string;
+}
+
+@ObjectType()
+export class ServiceDetail extends Service {
+  @Field(() => Provider, { nullable: true })
+  provider?: Provider;
+
+  @Field(() => Float, { nullable: true })
+  price?: number;
+
+  @Field(() => Float, { nullable: true })
+  commission?: number;
+
+  @Field(() => Float, { nullable: true })
+  netAmount?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  hasHomeVisit?: boolean;
 }

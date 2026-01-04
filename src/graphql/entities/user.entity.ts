@@ -20,13 +20,11 @@ import { Provider } from './provider.entity';
 import { Order } from './order.entity';
 import { ProviderReview } from './provider.entity';
 
-// Registro del Enum Role para GraphQL
-registerEnumType(Role, { name: 'Role' });
-
 /**
  * ENTIDAD USER (Output Object Type)
  * Alineada con el modelo 'User' de Prisma.
  */
+
 @ObjectType()
 export class User {
   @Field(() => Int)
@@ -56,29 +54,19 @@ export class User {
   @Field()
   activationKey: string;
 
+  // CAMBIO CLAVE: Definir el tipo de forma que acepte el string del Enum de Prisma
   @Field(() => Role, { nullable: true })
-  role?: Role | null; // El "?" es para undefined, el "| null" es para Prisma
+  role?: Role | string | null;
 
-  // RELACIONES
-  @Field(() => Provider, {
-    nullable: true,
-    description: 'Perfil de proveedor si el usuario tiene uno',
-  })
+  @Field(() => Provider, { nullable: true })
   provider?: Provider | null;
 
-  @Field(() => [Order], {
-    nullable: 'itemsAndList',
-    description: 'Historial de órdenes del usuario',
-  })
+  @Field(() => [Order], { nullable: 'itemsAndList' })
   orders?: Order[];
 
-  @Field(() => [ProviderReview], {
-    nullable: 'itemsAndList',
-    description: 'Reseñas escritas por el usuario',
-  })
+  @Field(() => [ProviderReview], { nullable: 'itemsAndList' })
   reviews?: ProviderReview[];
 }
-
 /**
  * INPUT PARA REGISTRO DE USUARIO (Básico)
  */

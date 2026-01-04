@@ -19,34 +19,34 @@ export class UsersResolver {
   async publicProfile(
     @Args('userId', { type: () => Int }) userId: number,
   ): Promise<User | null> {
-    // Trae el usuario con su metadata y proveedor si exist
-
     const provider = await this.prisma.provider.findFirst({
-      where: {
-        id: userId,
-      },
+      where: { id: userId },
     });
+
     if (!provider) return null;
 
-    const user = await this.usersService.findOne(provider?.userId);
+    const user = await this.usersService.findOne(provider.userId);
 
-    return {
-      ...user,
-    };
+    // USAMOS EL DOBLE CAST para evitar que TS valide propiedades anidadas inexistentes
+    return user as unknown as User;
   }
 
   @Query(() => User, { name: 'me' })
   @UseGuards(JwtAuthGuard)
-  async me(@Context() context: any) {
-    // sub es el ID del usuario
-    return this.usersService.findOne(Number(context.req.user.id));
+  async me(@Context() context: any): Promise<User> {
+    const userId = Number(context.req.user.id);
+    const user = await this.usersService.findOne(userId);
+
+    // USAMOS EL DOBLE CAST
+    return user as unknown as User;
   }
 
   @Query(() => [User], { name: 'users' })
   @Roles(Role.ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async findAll() {
-    return this.usersService.findAll();
+  async findAll(): Promise<User[]> {
+    const users = await this.usersService.findAll();
+    return users as unknown as User[];
   }
 
   @Query(() => User, { name: 'user', nullable: true })
