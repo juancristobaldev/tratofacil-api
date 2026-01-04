@@ -15,6 +15,8 @@ import {
 import { AuthType } from 'src/graphql/entities/auth.entity';
 import { Role } from 'src/graphql/enums/role.enum';
 import * as bcrypt from 'bcrypt';
+import { RegisterUserInput } from 'src/graphql/entities/user.entity';
+import { IdentityInput } from 'src/graphql/entities/register-provider';
 
 @Injectable()
 export class AuthService {
@@ -53,7 +55,7 @@ export class AuthService {
   /**
    * REGISTER: Registro limpio en tabla User
    */
-  async register(registerInput: RegisterInput): Promise<AuthType> {
+  async register(registerInput: RegisterUserInput): Promise<AuthType> {
     const { email, password, role, displayName } = registerInput;
 
     const existingUser = await this.prisma.user.findUnique({
@@ -145,7 +147,7 @@ export class AuthService {
   async confirmAndCreateUser(
     code: string,
     credentials: CredentialsInput,
-    identity: any,
+    identity: IdentityInput,
   ): Promise<AuthType> {
     if (code !== '123456') {
       throw new BadRequestException('Código inválido');
@@ -170,6 +172,7 @@ export class AuthService {
         // Los datos de nombre y teléfono se guardan directamente en la tabla Provider
         provider: {
           create: {
+            rut: identity.rut,
             name:
               identity.company || `${identity.firstName} ${identity.lastName}`,
             slug: (identity.company || username)

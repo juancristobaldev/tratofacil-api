@@ -151,8 +151,8 @@ export class Provider {
   updatedAt: Date;
 
   // RELACIONES (PRISMA)
-  @Field(() => User)
-  user: User;
+  @Field(() => User, { nullable: true })
+  user?: User;
 
   @Field(() => BankAccount, { nullable: true })
   bank?: BankAccount | null;
@@ -204,6 +204,11 @@ export class CreateProviderInput {
   @IsNotEmpty()
   @IsString()
   name: string;
+
+  @Field(() => String)
+  @IsNotEmpty({ message: 'Rut personal' })
+  @IsString()
+  rut: string;
 
   @Field({ nullable: true })
   @IsOptional()

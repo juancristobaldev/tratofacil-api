@@ -3,11 +3,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+// Importamos todas las entidades necesarias para el tipado estricto
 import {
   CreateServiceInput,
+  Service,
+  ServiceByCategory,
+  ServiceProvider,
   UpdateServiceInput,
 } from 'src/graphql/entities/service.entity';
-import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class ServicesService {
@@ -15,10 +19,12 @@ export class ServicesService {
 
   /**
    * CREAR SERVICIO (Oferta de Proveedor)
-   * Vincula a un proveedor con un servicio del catálogo y le asigna precio.
    */
-  async create(input: CreateServiceInput, userId: number) {
-    // 1. Validar que la subcategoría/servicio base existe en el catálogo
+  async create(
+    input: CreateServiceInput,
+    userId: number,
+  ): Promise<ServiceProvider> {
+    // 1. Validar que el servicio base existe en el catálogo por nombre y categoría
     const serviceBase = await this.prisma.service.findFirst({
       where: {
         name: input.name,
@@ -34,7 +40,7 @@ export class ServicesService {
       );
     }
 
-    // 2. Obtener el perfil del proveedor mediante el userId
+    // 2. Obtener el perfil del proveedor
     const provider = await this.prisma.provider.findUnique({
       where: { userId: userId },
     });
@@ -46,7 +52,6 @@ export class ServicesService {
     }
 
     // 3. Crear la oferta específica (ServiceProvider)
-    // Usamos el slug del servicio base + ID proveedor para unicidad
     const offerSlug = `${serviceBase.slug}-${provider.id}`;
 
     return this.prisma.serviceProvider.create({
@@ -57,7 +62,6 @@ export class ServicesService {
         description: input.description ?? serviceBase.description,
         price: input.price,
         hasHomeVisit: input.hasHomeVisit ?? false,
-        // commission y netAmount se pueden calcular aquí o vía middleware/logic
         commission: input.price * 0.1, // Ejemplo 10%
         netAmount: input.price * 0.9,
       },
@@ -65,15 +69,14 @@ export class ServicesService {
         service: true,
         provider: true,
       },
-    });
+    }) as unknown as ServiceProvider;
   }
 
   /**
    * BUSCAR POR CATEGORÍA
-   * Obtiene todos los servicios (subcategorías) de un rubro y sus proveedores.
+   * Solución al error de asignación de ServiceProvider[]
    */
-  async findByCategory(categorySlug: string) {
-    // 1. Buscar rubro por slug
+  async findByCategory(categorySlug: string): Promise<ServiceByCategory[]> {
     const category = await this.prisma.category.findUnique({
       where: { slug: categorySlug },
       include: {
@@ -89,15 +92,25 @@ export class ServicesService {
 
     if (!category) return [];
 
-    // 2. Mapear al formato esperado por la entidad
     return category.services.map((service) => {
-      const providers = service.serviceProviders.map((sp) => ({
-        ...sp.provider,
-        price: sp.price,
-        hasHomeVisit: sp.hasHomeVisit,
-      }));
+      // MAPEAMOS CUIDADOSAMENTE PARA SATISFACER LA ENTIDAD ServiceProvider
+      const providers: ServiceProvider[] = service.serviceProviders.map(
+        (sp) => ({
+          id: sp.id,
+          serviceId: sp.serviceId,
+          providerId: sp.providerId,
+          slug: sp.slug,
+          description: sp.description,
+          price: sp.price,
+          commission: sp.commission,
+          netAmount: sp.netAmount,
+          hasHomeVisit: sp.hasHomeVisit,
+          // PASAMOS LAS RELACIONES PARA QUE EL ENTITY NO SE QUEJE
+          service: service as any,
+          provider: sp.provider as any,
+        }),
+      );
 
-      // Calcular precio mínimo para mostrar "Desde $..."
       const prices = service.serviceProviders
         .map((sp) => sp.price)
         .filter((p) => p !== null) as number[];
@@ -116,9 +129,12 @@ export class ServicesService {
   }
 
   /**
-   * DETALLE DE SERVICIO ESPECÍFICO DE UN PROVEEDOR
+   * DETALLE DE SERVICIO ESPECÍFICO (ServiceProvider)
    */
-  async findServiceDetail(serviceId: number, providerId: number) {
+  async findServiceDetail(
+    serviceId: number,
+    providerId: number,
+  ): Promise<ServiceProvider> {
     const offer = await this.prisma.serviceProvider.findFirst({
       where: {
         serviceId: serviceId,
@@ -132,22 +148,14 @@ export class ServicesService {
 
     if (!offer) throw new NotFoundException('Oferta de servicio no encontrada');
 
-    return {
-      id: offer.id,
-      name: offer.service.name,
-      description: offer.description,
-      price: offer.price,
-      hasHomeVisit: offer.hasHomeVisit,
-      provider: offer.provider,
-      netAmount: offer.netAmount,
-      commission: offer.commission,
-    };
+    // Usamos cast para asegurar compatibilidad con la clase ServiceProvider
+    return offer as unknown as ServiceProvider;
   }
 
   /**
    * LISTAR SERVICIOS DE UN PROVEEDOR
    */
-  async findByProvider(userId: number) {
+  async findByProvider(userId: number): Promise<Service[]> {
     const provider = await this.prisma.provider.findUnique({
       where: { userId },
     });
@@ -163,15 +171,12 @@ export class ServicesService {
       },
     });
 
+    // Devolvemos la lista de servicios base enriquecidos para el resolver
     return offers.map((offer) => ({
-      id: offer.id,
-      name: offer.service.name,
+      ...offer.service,
+      id: offer.id, // Mantenemos el ID de la oferta para acciones de edición/borrado
       description: offer.description,
-      price: offer.price,
-      categoryId: offer.service.category?.id,
-      subCategoryId: offer.service.id,
-      hasHomeVisit: offer.hasHomeVisit,
-    }));
+    })) as unknown as Service[];
   }
 
   /**
@@ -181,7 +186,7 @@ export class ServicesService {
     serviceProviderId: number,
     input: UpdateServiceInput,
     userId: number,
-  ) {
+  ): Promise<ServiceProvider> {
     const provider = await this.prisma.provider.findUnique({
       where: { userId },
     });
@@ -198,17 +203,17 @@ export class ServicesService {
       data: {
         description: input.description,
         price: input.price,
-        // Recalcular montos si el precio cambia
         commission: input.price ? input.price * 0.1 : offer.commission,
         netAmount: input.price ? input.price * 0.9 : offer.netAmount,
       },
-    });
+      include: { service: true, provider: true },
+    }) as unknown as ServiceProvider;
   }
 
   /**
    * ELIMINAR OFERTA
    */
-  async delete(serviceProviderId: number, userId: number) {
+  async delete(serviceProviderId: number, userId: number): Promise<boolean> {
     const provider = await this.prisma.provider.findUnique({
       where: { userId },
     });
@@ -220,14 +225,16 @@ export class ServicesService {
       throw new ForbiddenException('No autorizado');
     }
 
-    return this.prisma.serviceProvider.delete({
+    await this.prisma.serviceProvider.delete({
       where: { id: serviceProviderId },
     });
+
+    return true;
   }
 
-  async findAll() {
+  async findAll(): Promise<Service[]> {
     return this.prisma.service.findMany({
       include: { category: true },
-    });
+    }) as unknown as Service[];
   }
 }

@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsUrl,
   ValidateNested,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Role } from '../enums/role.enum';
@@ -54,6 +55,11 @@ export class RegisterProviderInput {
   name: string;
 
   @Field(() => String)
+  @IsNotEmpty({ message: 'El nombre comercial o del proveedor es obligatorio' })
+  @IsString()
+  rut: string;
+
+  @Field(() => String)
   @IsNotEmpty()
   @IsString()
   slug: string;
@@ -86,4 +92,36 @@ export class RegisterProviderInput {
   @ValidateNested()
   @Type(() => BankAccountInput)
   bank?: BankAccountInput;
+}
+
+@InputType()
+export class IdentityInput {
+  @Field(() => String)
+  @IsNotEmpty({ message: 'El nombre es obligatorio' })
+  @IsString()
+  firstName: string;
+
+  @Field(() => String)
+  @IsNotEmpty({ message: 'El apellido es obligatorio' })
+  @IsString()
+  lastName: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  company: string;
+
+  @Field(() => String)
+  @IsNotEmpty({ message: 'El RUT es obligatorio' })
+  @IsString()
+  // Validación opcional para RUT chileno (formato 12345678-9)
+  @Matches(/^[0-9]{7,8}-[0-9kK]{1}$/, {
+    message: 'El RUT debe tener un formato válido (sin puntos y con guion)',
+  })
+  rut: string;
+
+  @Field(() => String)
+  @IsNotEmpty({ message: 'El teléfono es obligatorio' })
+  @IsString()
+  phone: string;
 }

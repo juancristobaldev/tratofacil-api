@@ -1,104 +1,125 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { WordpressService } from '../wordpress/wordpress.service';
-import { CreateCategoryInput } from 'src/graphql/entities/category.entity';
+import {
+  CreateCategoryInput,
+  UpdateCategoryInput,
+} from 'src/graphql/entities/category.entity';
 
 @Injectable()
 export class CategoryService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly wpService: WordpressService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Crear Rubro (Categoría en WP)
+   * Crear Rubro / Categoría
+   * Totalmente nativo, sin dependencias de WordPress
    */
   async create(data: CreateCategoryInput) {
-    // 1. Crear vía API para que WP genere los registros en term_taxonomy
-    const wpCat = await this.wpService.createCategory({
-      name: data.name,
-      slug: data.slug,
-      description: data.description,
-      parent: data.parentId,
+    // Verificar si el slug ya existe para evitar errores de base de datos
+    const existing = await this.prisma.category.findUnique({
+      where: { slug: data.slug },
     });
 
-    return {
-      id: Number(wpCat.id),
-      name: wpCat.name,
-      slug: wpCat.slug,
-      description: wpCat.description,
-      parentId: wpCat.parent,
-    };
+    if (existing) {
+      throw new ConflictException(
+        `La categoría con el slug '${data.slug}' ya existe.`,
+      );
+    }
+
+    return this.prisma.category.create({
+      data: {
+        name: data.name,
+        slug: data.slug,
+        description: data.description,
+        parentId: data.parentId,
+      },
+    });
   }
 
   /**
-   * Listar Categorías (Lectura directa Prisma)
+   * Listar Categorías (Padres e Hijas)
    */
+  async list() {
+    return this.prisma.category.findMany({
+      include: {
+        services: true, // Incluye servicios asociados si es necesario
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
 
-  async listWithParent() {
-    const taxonomies = await this.prisma.wpTermTaxonomy.findMany({
+  /**
+   * Listar SOLO subcategorías (las que tienen un padre)
+   */
+  async listSubcategories() {
+    return this.prisma.category.findMany({
       where: {
-        taxonomy: 'product_cat',
-        parent: {
-          not: 0, // 👈 SOLO subcategorías
+        parentId: {
+          not: null,
         },
       },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
+   * Listar SOLO categorías principales (las que no tienen padre)
+   */
+  async listMainCategories() {
+    return this.prisma.category.findMany({
+      where: {
+        parentId: null,
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
+   * Buscar por ID
+   */
+  async findById(id: number) {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
       include: {
-        term: true,
+        services: true,
       },
     });
 
-    return taxonomies.map((t) => ({
-      id: Number(t.term_id),
-      name: t.term.name,
-      slug: t.term.slug,
-      description: t.description,
-      parentId: Number(t.parent),
-      count: Number(t.count),
-    }));
+    if (!category) {
+      throw new NotFoundException(`Categoría con ID ${id} no encontrada`);
+    }
+
+    return category;
   }
 
-  async list() {
-    // Trae todas las categorías product_cat
-    const taxonomies = await this.prisma.wpTermTaxonomy.findMany({
-      where: { taxonomy: 'product_cat' },
-      include: { term: true },
+  /**
+   * Actualizar Categoría
+   */
+  async update(id: number, data: UpdateCategoryInput) {
+    await this.findById(id); // Validar existencia
+
+    return this.prisma.category.update({
+      where: { id },
+      data: {
+        name: data.name,
+        slug: data.slug,
+        description: data.description,
+        parentId: data.parentId,
+      },
     });
-
-    // Obtener los IDs que aparecen como parent
-    const parentIds = new Set(
-      taxonomies.map((t) => Number(t.parent)).filter((parent) => parent !== 0),
-    );
-
-    // Filtrar solo categorías que tengan hijos
-    const categoriesWithChildren = taxonomies.filter((t) =>
-      parentIds.has(Number(t.term_id)),
-    );
-
-    return categoriesWithChildren.map((t) => ({
-      id: Number(t.term_id),
-      name: t.term.name,
-      slug: t.term.slug,
-      description: t.description,
-      parentId: Number(t.parent),
-      count: Number(t.count),
-    }));
   }
 
-  async findById(id: number) {
-    const taxonomy = await this.prisma.wpTermTaxonomy.findFirst({
-      where: { term_id: BigInt(id), taxonomy: 'product_cat' },
-      include: { term: true },
+  /**
+   * Eliminar Categoría
+   */
+  async delete(id: number) {
+    await this.findById(id);
+
+    return this.prisma.category.delete({
+      where: { id },
     });
-
-    if (!taxonomy) throw new NotFoundException('Categoría no encontrada');
-
-    return {
-      id: Number(taxonomy.term_id),
-      name: taxonomy.term.name,
-      slug: taxonomy.term.slug,
-      description: taxonomy.description,
-      parentId: Number(taxonomy.parent),
-    };
   }
 }

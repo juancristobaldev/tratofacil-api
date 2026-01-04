@@ -57,7 +57,7 @@ export class User {
   activationKey: string;
 
   @Field(() => Role, { nullable: true })
-  role?: Role | null;
+  role?: Role | null; // El "?" es para undefined, el "| null" es para Prisma
 
   // RELACIONES
   @Field(() => Provider, {

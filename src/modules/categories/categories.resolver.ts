@@ -1,45 +1,125 @@
-import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
-import { CategoryService } from './categories.service';
 import {
-  Category,
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import {
   CreateCategoryInput,
+  UpdateCategoryInput,
 } from 'src/graphql/entities/category.entity';
-import { UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
-@Resolver(() => Category)
-export class CategoriesResolver {
-  constructor(private readonly categoryService: CategoryService) {}
+@Injectable()
+export class CategoryService {
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Query: Obtener todos los rubros/categorías
-   * Mapea directamente a las taxonomías 'product_cat' de WP
+   * Crear Rubro / Categoría
+   * Totalmente nativo, sin dependencias de WordPress
    */
-  @Query(() => [Category])
-  async categoriesWithParent() {
-    return this.categoryService.listWithParent();
-  }
+  async create(data: CreateCategoryInput) {
+    // Verificar si el slug ya existe para evitar errores de base de datos
+    const existing = await this.prisma.category.findUnique({
+      where: { slug: data.slug },
+    });
 
-  @Query(() => [Category], { name: 'categories' })
-  async getCategories() {
-    return this.categoryService.list();
+    if (existing) {
+      throw new ConflictException(
+        `La categoría con el slug '${data.slug}' ya existe.`,
+      );
+    }
+
+    return this.prisma.category.create({
+      data: {
+        name: data.name,
+        slug: data.slug,
+        description: data.description,
+        parentId: data.parentId,
+      },
+    });
   }
 
   /**
-   * Query: Obtener una categoría específica por su ID de Term
+   * Listar Categorías (Padres e Hijas)
    */
-  @Query(() => Category, { name: 'category' })
-  async getCategory(@Args('id', { type: () => Int }) id: number) {
-    return this.categoryService.findById(id);
+  async list() {
+    return this.prisma.category.findMany({
+      include: {
+        services: true, // Incluye servicios asociados si es necesario
+      },
+      orderBy: { name: 'asc' },
+    });
   }
 
   /**
-   * Mutation: Crear una nueva categoría (Rubro)
-   * Solo accesible por administradores (puedes añadir roles más adelante)
+   * Listar SOLO subcategorías (las que tienen un padre)
    */
-  @Mutation(() => Category)
-  @UseGuards(JwtAuthGuard)
-  async createCategory(@Args('input') input: CreateCategoryInput) {
-    return this.categoryService.create(input);
+  async listSubcategories() {
+    return this.prisma.category.findMany({
+      where: {
+        parentId: {
+          not: null,
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
+   * Listar SOLO categorías principales (las que no tienen padre)
+   */
+  async listMainCategories() {
+    return this.prisma.category.findMany({
+      where: {
+        parentId: null,
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
+   * Buscar por ID
+   */
+  async findById(id: number) {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+      include: {
+        services: true,
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundException(`Categoría con ID ${id} no encontrada`);
+    }
+
+    return category;
+  }
+
+  /**
+   * Actualizar Categoría
+   */
+  async update(id: number, data: UpdateCategoryInput) {
+    await this.findById(id); // Validar existencia
+
+    return this.prisma.category.update({
+      where: { id },
+      data: {
+        name: data.name,
+        slug: data.slug,
+        description: data.description,
+        parentId: data.parentId,
+      },
+    });
+  }
+
+  /**
+   * Eliminar Categoría
+   */
+  async delete(id: number) {
+    await this.findById(id);
+
+    return this.prisma.category.delete({
+      where: { id },
+    });
   }
 }
