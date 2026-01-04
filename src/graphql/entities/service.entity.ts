@@ -1,10 +1,18 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsInt,
+  IsBoolean,
+  IsNotEmpty,
+} from 'class-validator';
 import { Provider } from './provider.entity';
 import { Category } from './category.entity';
-import { IsString, IsOptional, IsNumber, IsInt } from 'class-validator';
+import { Order } from './order.entity';
 
 // =========================================================
-// ENTIDAD PIVOTE: SERVICE PROVIDER
+// 1. ENTIDAD PIVOTE: SERVICE PROVIDER (La Oferta Específica)
 // =========================================================
 @ObjectType()
 export class ServiceProvider {
@@ -17,21 +25,37 @@ export class ServiceProvider {
   @Field(() => Int)
   providerId: number;
 
-  // IMPORTANTE: Este campo debe existir en tu tabla ServiceProvider en Prisma
-  // para que cada proveedor tenga su propio precio.
-  @Field(() => Float, { nullable: true })
-  price?: number;
+  @Field()
+  slug: string;
 
-  // Relaciones
+  @Field(() => String, { nullable: true })
+  description?: string | null;
+
+  @Field(() => Float, { nullable: true })
+  price?: number | null;
+
+  @Field(() => Float, { nullable: true })
+  commission?: number | null;
+
+  @Field(() => Float, { nullable: true })
+  netAmount?: number | null;
+
+  @Field(() => Boolean)
+  hasHomeVisit: boolean;
+
+  // RELACIONES
+  @Field(() => Service)
+  service: Service;
+
   @Field(() => Provider)
   provider: Provider;
 
-  @Field(() => Service)
-  service: Service;
+  @Field(() => [Order], { nullable: 'itemsAndList' })
+  orders?: Order[];
 }
 
 // =========================================================
-// ENTIDAD PRINCIPAL: SERVICE
+// 2. ENTIDAD PRINCIPAL: SERVICE (Catálogo General)
 // =========================================================
 @ObjectType()
 export class Service {
@@ -44,37 +68,24 @@ export class Service {
   @Field()
   slug: string;
 
-  @Field({ nullable: true })
-  description?: string;
-
-  @Field(() => Float, { nullable: true })
-  price?: number; // Precio base o referencia
-
-  @Field(() => Float, { nullable: true })
-  commission?: number;
-
-  @Field(() => Float, { nullable: true })
-  netAmount?: number;
-
-  @Field(() => Boolean)
-  hasHomeVisit: boolean;
-
-  // RELACIONES QUE FALTABAN
-  @Field(() => Category, { nullable: true })
-  category?: Category;
+  @Field(() => String, { nullable: true })
+  description?: string | null;
 
   @Field(() => Int, { nullable: true })
-  categoryId?: number;
+  categoryId?: number | null;
+
+  // RELACIONES
+  @Field(() => Category, { nullable: true })
+  category?: Category | null;
 
   @Field(() => [ServiceProvider], { nullable: 'itemsAndList' })
   serviceProviders?: ServiceProvider[];
 }
 
 // =========================================================
-// TIPOS AUXILIARES / DTOs DE SALIDA
+// 3. TIPOS AUXILIARES / DTOs DE SALIDA
 // =========================================================
 
-// Usado para listar servicios por categoría con estructura simplificada
 @ObjectType()
 export class ServiceByCategory {
   @Field(() => Int)
@@ -86,64 +97,86 @@ export class ServiceByCategory {
   @Field()
   slug: string;
 
-  @Field({ nullable: true })
-  description?: string;
-
-  @Field(() => Float)
-  price: number;
-
-  @Field(() => Boolean)
-  hasHomeVisit: boolean;
-
   @Field(() => [ServiceProvider])
   providers: ServiceProvider[];
 }
 
-@ObjectType()
-export class ServiceDetail extends Service {
-  // Este objeto extendido es útil si necesitas devolver un servicio
-  // con un proveedor pre-seleccionado o lógica específica.
-  @Field(() => Provider, { nullable: true })
-  provider?: Provider;
-}
-
 // =========================================================
-// INPUTS
+// 4. INPUTS
 // =========================================================
 
 @InputType()
 export class CreateServiceInput {
-  @Field(() => Int)
-  @IsInt()
-  categoryId: number;
+  @Field()
+  @IsNotEmpty()
+  @IsString()
+  name: string;
 
-  @Field(() => Int)
-  @IsInt()
-  subCategoryId: number;
+  @Field()
+  @IsNotEmpty()
+  @IsString()
+  slug: string;
 
   @Field({ nullable: true })
   @IsOptional()
   @IsString()
   description?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  categoryId?: number;
+}
+
+@InputType()
+export class UpdateServiceInput {
+  @Field(() => Int)
+  @IsInt()
+  id: number;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  categoryId?: number;
+}
+
+/**
+ * INPUT PARA VINCULAR UN PROVEEDOR A UN SERVICIO (Crear Oferta)
+ */
+@InputType()
+export class LinkServiceProviderInput {
+  @Field(() => Int)
+  @IsInt()
+  serviceId: number;
+
+  @Field(() => Int)
+  @IsInt()
+  providerId: number;
+
+  @Field(() => String)
+  @IsNotEmpty()
+  slug: string;
 
   @Field(() => Float)
   @IsNumber()
   price: number;
 
-  @Field(() => Boolean, { nullable: true })
-  @IsOptional()
-  hasHomeVisit?: boolean;
-}
+  @Field(() => Boolean, { defaultValue: false })
+  @IsBoolean()
+  hasHomeVisit: boolean;
 
-@InputType()
-export class UpdateServiceInput {
   @Field({ nullable: true })
   @IsOptional()
   @IsString()
   description?: string;
-
-  @Field(() => Float, { nullable: true })
-  @IsOptional()
-  @IsNumber()
-  price?: number;
 }

@@ -1,75 +1,89 @@
-import { InputType, Field, Int } from '@nestjs/graphql';
-import { CredentialsInput } from '../inputs/auth.input';
-import { IsOptional } from 'class-validator';
+import { InputType, Field } from '@nestjs/graphql';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsUrl,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { Role } from '../enums/role.enum';
+import { BankAccountInput } from './provider.entity';
 
+/**
+ * INPUT PARA EL REGISTRO INTEGRAL DE PROVEEDOR
+ * Este DTO permite crear el Usuario y el Perfil de Proveedor en un solo paso.
+ */
 @InputType()
-export class IdentityInput {
-  @Field()
-  firstName: string;
+export class RegisterProviderInput {
+  // ==========================================
+  // DATOS DE CUENTA (USER)
+  // ==========================================
+  @Field(() => String)
+  @IsEmail({}, { message: 'El formato del correo es inválido' })
+  @IsNotEmpty()
+  email: string;
 
-  @Field()
-  lastName: string;
+  @Field(() => String)
+  @IsNotEmpty()
+  @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
+  password: string;
 
-  @Field()
-  company: string;
-
-  @Field()
-  rut: string;
-
-  @Field()
-  phone: string;
-}
-
-@InputType()
-export class BankInput {
-  @Field()
-  bankName: string;
-
-  @Field()
-  accountNumber: string;
-
-  @Field()
-  accountType: string;
-}
-
-@InputType()
-export class ServicesInput {
-  @Field(() => [String])
-  categories: string[];
-}
-
-@InputType()
-export class ProviderRegistrationInput {
-  @Field(() => CredentialsInput)
-  credentials: CredentialsInput;
-
-  @Field(() => IdentityInput)
-  identity: IdentityInput;
-
-  @Field(() => BankInput)
-  bank: BankInput;
-
-  @Field(() => ServicesInput)
-  services: ServicesInput;
-
-  @Field({ nullable: true })
-  providerName?: string;
-}
-
-@InputType()
-export class UpdateBankInput {
-  @Field(() => Int)
-  bankId: number;
-
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
-  bankName?: string;
+  @IsString()
+  displayName?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
-  accountNumber?: string;
+  @IsString()
+  username?: string;
 
-  @Field({ nullable: true })
+  // El rol siempre será PROVIDER para este flujo
+  @Field(() => Role, { defaultValue: Role.PROVIDER })
+  role: Role = Role.PROVIDER;
+
+  // ==========================================
+  // DATOS DE PERFIL (PROVIDER)
+  // ==========================================
+  @Field(() => String)
+  @IsNotEmpty({ message: 'El nombre comercial o del proveedor es obligatorio' })
+  @IsString()
+  name: string;
+
+  @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
+  slug: string;
+
+  @Field(() => String, { nullable: true })
   @IsOptional()
-  accountType?: string;
+  @IsString()
+  phone?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsUrl({}, { message: 'El logo debe ser una URL válida' })
+  logoUrl?: string;
+
+  // ==========================================
+  // DATOS BANCARIOS (BANK ACCOUNT)
+  // ==========================================
+  @Field(() => BankAccountInput, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BankAccountInput)
+  bank?: BankAccountInput;
 }

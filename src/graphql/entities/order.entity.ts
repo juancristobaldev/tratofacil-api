@@ -1,75 +1,56 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
-import { IsInt, Min } from 'class-validator';
+import { IsInt, Min, IsOptional, IsNumber, isNotEmpty } from 'class-validator';
 import { OrderStatus } from '../enums/order-status.enum';
 import { User } from './user.entity';
 import { Payment } from './payment.entity';
 import { ProviderReview } from './provider.entity';
-import { Service } from './service.entity'; // Importación necesaria
+import { ServiceProvider } from './service.entity';
 
-@ObjectType()
-export class OrderProduct {
-  @Field(() => Int)
-  id: number;
-
-  @Field()
-  title: string;
-}
-
+/**
+ * ENTIDAD ORDER (Output Object Type)
+ * Alineada con el modelo 'Order' de Prisma.
+ */
 @ObjectType()
 export class Order {
-  // =========================
-  // IDENTIDAD
-  // =========================
   @Field(() => Int)
   id: number;
 
-  // =========================
-  // CLIENTE
-  // =========================
   @Field(() => Int)
   clientId: number;
 
-  @Field(() => User)
-  client: User;
-
-  // =========================
-  // DATOS DE LA ORDEN
-  // =========================
   @Field(() => Float)
   total: number;
 
   @Field(() => OrderStatus)
   status: OrderStatus;
 
-  // =========================
-  // VINCULACIÓN WOOCOMMERCE
-  // =========================
+  // Integración con WooCommerce
   @Field(() => Int, { nullable: true })
   wcOrderId?: number | null;
 
   @Field(() => String, { nullable: true })
   wcOrderKey?: string | null;
 
+  // Relación con el Proveedor de Servicio (La oferta)
   @Field(() => Int, { nullable: true })
-  productId?: number | null;
+  serviceProviderId?: number | null;
 
-  // RELACIÓN PRODUCTO (SERVICIO)
-  // Esta relación existía en Prisma pero faltaba aquí
-  @Field(() => OrderProduct, { nullable: true })
-  product?: OrderProduct | null;
-
-  // =========================
   // RELACIONES
-  // =========================
+  @Field(() => User, { description: 'Cliente que realizó la orden' })
+  client: User;
+
+  @Field(() => ServiceProvider, {
+    nullable: true,
+    description: 'Servicio específico contratado',
+  })
+  serviceProvider?: ServiceProvider | null;
+
   @Field(() => Payment, { nullable: true })
   payment?: Payment | null;
 
   @Field(() => ProviderReview, { nullable: true })
   review?: ProviderReview | null;
 
-  // =========================
-  // TIMESTAMPS
-  // =========================
   @Field()
   createdAt: Date;
 
@@ -77,28 +58,46 @@ export class Order {
   updatedAt: Date;
 }
 
-/* ======================
-   INPUTS
-====================== */
-
-@InputType()
-export class OrderItemInput {
-  @Field(() => Int)
-  @IsInt()
-  serviceId: number;
-
-  @Field(() => Int)
-  @IsInt()
-  @Min(1)
-  quantity: number;
-}
-
+/**
+ * INPUT PARA CREAR UNA ORDEN
+ */
 @InputType()
 export class CreateOrderInput {
   @Field(() => Int)
-  productId: number;
+  @IsInt()
+  serviceProviderId: number;
+
+  @Field(() => Float)
+  @IsNumber()
+  @Min(0)
+  total: number;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  wcOrderId?: number;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  wcOrderKey?: string;
 }
 
+/**
+ * INPUT PARA ACTUALIZAR ESTADO DE ORDEN
+ */
+@InputType()
+export class UpdateOrderInput {
+  @Field(() => Int)
+  @IsInt()
+  id: number;
+
+  @Field(() => OrderStatus)
+  status: OrderStatus;
+}
+
+/**
+ * TIPO DE RESPUESTA PARA PASARELA DE PAGO (Webpay)
+ */
 @ObjectType()
 export class WebpayResponse {
   @Field()

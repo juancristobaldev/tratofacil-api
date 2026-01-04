@@ -1,7 +1,17 @@
 import { ObjectType, Field, Int, InputType } from '@nestjs/graphql';
-import { IsNotEmpty, IsString, IsOptional, IsInt } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsInt,
+  MinLength,
+} from 'class-validator';
 import { Service } from './service.entity';
 
+/**
+ * ENTIDAD CATEGORY (Output Object Type)
+ * Alineada con el modelo 'Category' de Prisma.
+ */
 @ObjectType()
 export class Category {
   @Field(() => Int)
@@ -14,24 +24,32 @@ export class Category {
   slug: string;
 
   @Field(() => String, { nullable: true })
-  description?: string;
+  description?: string | null;
 
   @Field(() => Int, { nullable: true })
-  parentId?: number;
+  parentId?: number | null;
 
-  @Field(() => [Service], { nullable: 'itemsAndList' })
+  // RELACIONES
+  @Field(() => [Service], {
+    nullable: 'itemsAndList',
+    description: 'Servicios asociados a esta categoría',
+  })
   services?: Service[];
 }
 
+/**
+ * INPUT PARA CREAR CATEGORÍA
+ */
 @InputType()
 export class CreateCategoryInput {
   @Field(() => String)
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'El nombre es obligatorio' })
   @IsString()
+  @MinLength(3)
   name: string;
 
   @Field(() => String)
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'El slug es obligatorio' })
   @IsString()
   slug: string;
 
@@ -46,21 +64,33 @@ export class CreateCategoryInput {
   parentId?: number;
 }
 
+/**
+ * INPUT PARA ACTUALIZAR CATEGORÍA
+ */
 @InputType()
 export class UpdateCategoryInput {
   @Field(() => Int)
   @IsInt()
+  @IsNotEmpty()
   id: number;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
+  @IsString()
   name?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
+  @IsString()
   slug?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
+  @IsString()
   description?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  parentId?: number;
 }

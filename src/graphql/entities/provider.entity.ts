@@ -4,15 +4,20 @@ import {
   IsOptional,
   IsNotEmpty,
   ValidateNested,
+  IsInt,
+  IsUrl,
+  IsBoolean,
+  Max,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { User } from './user.entity';
 import { Order } from './order.entity';
+import { ServiceProvider } from './service.entity';
 
-/* ======================
-   OUTPUTS
-====================== */
-
+// =========================================================
+// 1. BANK ACCOUNT ENTITY
+// =========================================================
 @ObjectType()
 export class BankAccount {
   @Field(() => Int)
@@ -32,69 +37,62 @@ export class BankAccount {
 
   @Field(() => String, { nullable: true })
   email?: string | null;
+
+  @Field(() => Int)
+  providerId: number;
+
+  @Field()
+  createdAt: Date;
+
+  @Field()
+  updatedAt: Date;
 }
 
+// =========================================================
+// 2. PROVIDER REVIEW ENTITY
+// =========================================================
 @ObjectType()
 export class ProviderReview {
-  // =========================
-  // IDENTIDAD
-  // =========================
   @Field(() => Int)
   id: number;
 
-  // =========================
-  // PROVIDER
-  // =========================
+  @Field(() => Int)
+  providerId: number;
 
-  // =========================
-  // CLIENTE
-  // =========================
   @Field(() => Int)
   clientId: number;
 
-  @Field(() => User)
-  client: User;
-
-  // =========================
-  // ORDEN (REVIEW VERIFICADA)
-  // =========================
   @Field(() => Int, { nullable: true })
   orderId?: number | null;
 
-  @Field(() => Order, { nullable: true })
-  order?: Order | null;
-
-  // =========================
-  // CONTENIDO DE LA REVIEW
-  // =========================
   @Field(() => Int)
-  rating: number; // 1 a 5
+  rating: number;
 
   @Field(() => String, { nullable: true })
   comment?: string | null;
 
-  // =========================
-  // TIMESTAMP
-  // =========================
   @Field()
   createdAt: Date;
+
+  // RELACIONES
+  @Field(() => User)
+  client: User;
+
+  @Field(() => Order, { nullable: true })
+  order?: Order | null;
 }
 
+// =========================================================
+// 3. PROVIDER CERTIFICATE ENTITY
+// =========================================================
 @ObjectType()
 export class ProviderCertificate {
-  // =========================
-  // IDENTIDAD
-  // =========================
   @Field(() => Int)
   id: number;
 
-  // =========================
-  // PROVIDER
-  // =========================
+  @Field(() => Int)
+  providerId: number;
 
-  // =========================
-  // DATOS DEL CERTIFICADO
-  // =========================
   @Field()
   title: string;
 
@@ -107,19 +105,16 @@ export class ProviderCertificate {
   @Field()
   fileUrl: string;
 
-  // =========================
-  // VERIFICACIÓN
-  // =========================
   @Field()
   verified: boolean;
 
-  // =========================
-  // TIMESTAMP
-  // =========================
   @Field()
   createdAt: Date;
 }
 
+// =========================================================
+// 4. MAIN PROVIDER ENTITY
+// =========================================================
 @ObjectType()
 export class Provider {
   @Field(() => Int)
@@ -136,10 +131,6 @@ export class Provider {
 
   @Field()
   slug: string;
-  @Field(() => [ProviderReview], { nullable: true })
-  reviews?: ProviderReview[];
-  @Field(() => [ProviderCertificate], { nullable: true })
-  certificates?: ProviderCertificate[];
 
   @Field(() => String, { nullable: true })
   location?: string | null;
@@ -153,26 +144,32 @@ export class Provider {
   @Field(() => String, { nullable: true })
   phone?: string | null;
 
-  @Field(() => BankAccount, { nullable: true })
-  bank?: BankAccount | null;
-
-  @Field(() => User, { nullable: true })
-  user?: User | null;
-
   @Field()
   createdAt: Date;
 
   @Field()
   updatedAt: Date;
+
+  // RELACIONES (PRISMA)
+  @Field(() => User)
+  user: User;
+
+  @Field(() => BankAccount, { nullable: true })
+  bank?: BankAccount | null;
+
+  @Field(() => [ProviderReview], { nullable: 'itemsAndList' })
+  reviews?: ProviderReview[];
+
+  @Field(() => [ProviderCertificate], { nullable: 'itemsAndList' })
+  certificates?: ProviderCertificate[];
+
+  @Field(() => [ServiceProvider], { nullable: 'itemsAndList' })
+  services?: ServiceProvider[];
 }
 
 // =========================================================
-// PROVIDER REVIEW ENTITY
+// INPUTS
 // =========================================================
-
-/* ======================
-   INPUTS
-====================== */
 
 @InputType()
 export class BankAccountInput {
@@ -191,11 +188,12 @@ export class BankAccountInput {
   @IsString()
   accountType: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
+  @IsString()
   rut?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
   email?: string;
 }
@@ -207,20 +205,24 @@ export class CreateProviderInput {
   @IsString()
   name: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
+  @IsString()
   location?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
+  @IsUrl()
   logoUrl?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
+  @IsString()
   bio?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
+  @IsString()
   phone?: string;
 
   @Field(() => BankAccountInput, { nullable: true })
@@ -233,5 +235,6 @@ export class CreateProviderInput {
 @InputType()
 export class UpdateProviderInput extends CreateProviderInput {
   @Field(() => Int)
+  @IsInt()
   id: number;
 }
