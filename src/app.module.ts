@@ -17,6 +17,7 @@ import { ConfigModule } from '@nestjs/config';
 import { WordpressModule } from './modules/wordpress/wordpress.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { AdminModule } from './modules/admin/admin.module';
     WordpressModule,
     CertificatesModule,
     AdminModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

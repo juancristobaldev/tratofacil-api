@@ -23,8 +23,8 @@ export class Category {
   @Field(() => String)
   slug: string;
 
-  @Field(() => String)
-  image?: string;
+  @Field(() => String, { nullable: true })
+  imageUrl?: string;
 
   @Field(() => String, { nullable: true })
   description?: string | null;
@@ -65,6 +65,10 @@ export class CreateCategoryInput {
   @IsOptional()
   @IsInt()
   parentId?: number;
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 }
 
 /**
@@ -96,4 +100,9 @@ export class UpdateCategoryInput {
   @IsOptional()
   @IsInt()
   parentId?: number;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 }

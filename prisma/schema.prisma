@@ -71,7 +71,7 @@ model Category {
   description String?
   parentId    Int?
 
-  image       String?
+  imageUrl       String?
   services Service[] @relation("CategoryServices")
 
   @@index([parentId])
@@ -82,7 +82,7 @@ model Service {
   name        String
   slug        String  @unique
   description String?
-  image       String?
+  imageUrl       String?
   categoryId Int?
   category   Category? @relation("CategoryServices", fields: [categoryId], references: [id], onDelete: Cascade)
 
