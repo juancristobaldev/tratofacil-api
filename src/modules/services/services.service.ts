@@ -27,13 +27,22 @@ export class ServicesService {
     // 1. Validar que el servicio base existe en el catálogo por nombre y categoría
     const serviceBase = await this.prisma.service.findFirst({
       where: {
-        name: input.name,
+        slug: input.slug,
         category: {
           id: input.categoryId,
         },
       },
     });
 
+    const services = await this.prisma.service.findMany({
+      where: {
+        category: {
+          id: input.categoryId,
+        },
+      },
+    });
+
+    console.log({ services });
     if (!serviceBase) {
       throw new NotFoundException(
         'El servicio base seleccionado no existe en el catálogo',
@@ -176,6 +185,13 @@ export class ServicesService {
       ...offer.service,
       id: offer.id, // Mantenemos el ID de la oferta para acciones de edición/borrado
       description: offer.description,
+      serviceProviders: [
+        {
+          id: offer.id,
+          price: offer.price,
+          hasHomeVisit: offer.hasHomeVisit,
+        },
+      ],
     })) as unknown as Service[];
   }
 

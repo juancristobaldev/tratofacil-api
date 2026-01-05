@@ -10,6 +10,8 @@ import {
 import {
   UpdateProviderInput,
   BankAccountInput,
+  CreateProviderInput,
+  CreateReviewInput,
 } from 'src/graphql/entities/provider.entity';
 
 @Injectable()
@@ -34,14 +36,39 @@ export class ProvidersService {
    * REGISTRO DE PROVEEDOR (Lógica nativa y atómica)
    * Alineado para guardar nombre y teléfono en la tabla Provider directamente.
    */
-  async register(userId: number, input: any) {
+
+  async createReview(clientId: number, input: CreateReviewInput) {
+    const { orderId, providerId, rating, comment } = input;
+
+    // Verificamos que la orden pertenezca al cliente y no tenga reseña previa
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order || order.clientId !== clientId) {
+      throw new Error('Orden no encontrada o no autorizada');
+    }
+
+    return this.prisma.providerReview.create({
+      data: {
+        rating,
+        comment,
+        clientId,
+        providerId,
+        orderId,
+      },
+    });
+  }
+  async register(userId: number, input: CreateProviderInput) {
     // Nota: 'input' aquí viene de la lógica donde ya se separó identity y bank
-    const { name, phone, bio, location, bank, logoUrl } = input;
+    const { name, phone, company, location, bank, logoUrl } = input;
 
     // 1. Verificar si el usuario ya tiene un perfil de proveedor
     const existing = await this.prisma.provider.findUnique({
       where: { userId },
     });
+
+    console.log(existing);
     if (existing)
       throw new BadRequestException(
         'El usuario ya tiene un perfil de proveedor activo',
@@ -56,15 +83,24 @@ export class ProvidersService {
       slug = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
     }
 
+    await this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        displayName: name,
+      },
+    });
+
     // 3. Crear Proveedor y Banco en una sola transacción de Prisma
     return this.prisma.provider.create({
       data: {
         userId,
-        name: name,
+        name: company ?? '',
         slug,
         phone: phone, // Columna nativa en la tabla Provider
         location: location || 'Chile',
-        bio: bio || '',
+        bio: '',
         logoUrl: logoUrl || '',
         // Relación nativa con BankAccount
         bank: bank
@@ -100,7 +136,6 @@ export class ProvidersService {
         name: input.name,
         location: input.location,
         logoUrl: input.logoUrl,
-        bio: input.bio,
         phone: input.phone,
       },
       include: { bank: true },

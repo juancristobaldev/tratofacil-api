@@ -22,6 +22,7 @@ export class ServicesResolver {
   async findByCategory(
     @Args('categorySlug', { type: () => String }) categorySlug: string,
   ): Promise<ServiceByCategory[]> {
+    console.log(categorySlug);
     return this.servicesService.findByCategory(categorySlug);
   }
 

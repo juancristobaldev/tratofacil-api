@@ -48,6 +48,13 @@ input CreateCategoryInput {
   slug: String!
 }
 
+input CreateCertificateInput {
+  fileUrl: String!
+  institution: String
+  title: String!
+  year: Int
+}
+
 input CreateOrderInput {
   serviceProviderId: Int!
   total: Float!
@@ -55,11 +62,17 @@ input CreateOrderInput {
   wcOrderKey: String
 }
 
+input CreateReviewInput {
+  comment: String
+  orderId: Int!
+  providerId: Int!
+  rating: Int!
+}
+
 input CreateServiceInput {
   categoryId: Int
   description: String
   hasHomeVisit: Boolean!
-  name: String!
   price: Int!
   slug: String!
 }
@@ -92,9 +105,12 @@ type Mutation {
   confirmEmailAndCreateUser(code: String!, credentials: CredentialsInput!, identity: IdentityInput!): AuthType!
   confirmPayment(token: String!): Order!
   createCategory(input: CreateCategoryInput!): Category!
+  createCertificate(input: CreateCertificateInput!): ProviderCertificate!
   createOrder(input: CreateOrderInput!): Order!
+  createReview(input: CreateReviewInput!): ProviderReview!
   createService(input: CreateServiceInput!): ServiceProvider!
   deleteCategory(id: Int!): Category!
+  deleteCertificate(id: Int!): Boolean!
   deleteService(id: Int!): Boolean!
 
   """Verifica disponibilidad de email y envía código de validación"""
@@ -109,6 +125,7 @@ type Mutation {
   registerProvider(input: UpdateProviderInput!): Provider!
   updateBank(input: BankAccountInput!, providerId: Int!): BankAccount!
   updateCategory(id: Int!, input: UpdateCategoryInput!): Category!
+  updateCertificate(input: UpdateCertificateInput!): ProviderCertificate!
   updateOrderStatus(orderId: Int!, providerId: Int!, status: OrderStatus!): Order!
   updateProvider(id: Int!, input: UpdateProviderInput!): Provider!
   updateService(id: Int!, input: UpdateServiceInput!): ServiceProvider!
@@ -214,6 +231,7 @@ type ProviderReview {
 type Query {
   categories: [Category!]!
   category(id: Int!): Category!
+  getMyCertificates: [ProviderCertificate!]!
   getOrdersByProvider(providerId: Int!): [Order!]!
   getServicesProvider(providerId: Int!): [Service!]!
   mainCategories: [Category!]!
@@ -273,6 +291,7 @@ type ServiceDetail {
   netAmount: Float
   price: Float
   provider: Provider
+  service: Service
   serviceProviders: [ServiceProvider]
   slug: String!
 }
@@ -300,10 +319,18 @@ input UpdateCategoryInput {
   slug: String
 }
 
+input UpdateCertificateInput {
+  fileUrl: String
+  id: Int!
+  institution: String
+  title: String
+  year: Int
+}
+
 input UpdateProviderInput {
   bank: BankAccountInput
-  bio: String
-  id: Int!
+  company: String
+  id: Int
   location: String
   logoUrl: String
   name: String!

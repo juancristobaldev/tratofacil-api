@@ -63,25 +63,44 @@ export class ProviderReview {
   clientId: number;
 
   @Field(() => Int, { nullable: true })
-  orderId?: number | null;
+  orderId?: number;
 
   @Field(() => Int)
   rating: number;
 
   @Field(() => String, { nullable: true })
-  comment?: string | null;
+  comment?: string;
 
-  @Field()
+  @Field(() => Date)
   createdAt: Date;
 
-  // RELACIONES
+  // =======================
+  // RELACIONES (Lazy loading o Directas)
+  // =======================
+
   @Field(() => User)
   client: User;
 
+  // Es vital que sea nullable: true si una review pudiera existir sin orden
+  // (aunque en tu flujo siempre van juntas)
   @Field(() => Order, { nullable: true })
-  order?: Order | null;
+  order?: Order;
 }
 
+@InputType()
+export class CreateReviewInput {
+  @Field(() => Int)
+  orderId: number;
+
+  @Field(() => Int)
+  providerId: number;
+
+  @Field(() => Int)
+  rating: number;
+
+  @Field({ nullable: true })
+  comment?: string;
+}
 // =========================================================
 // 3. PROVIDER CERTIFICATE ENTITY
 // =========================================================
@@ -110,6 +129,39 @@ export class ProviderCertificate {
 
   @Field()
   createdAt: Date;
+}
+
+@InputType()
+export class CreateCertificateInput {
+  @Field()
+  title: string;
+
+  @Field({ nullable: true })
+  institution?: string;
+
+  @Field(() => Int, { nullable: true })
+  year?: number;
+
+  @Field()
+  fileUrl: string;
+}
+
+@InputType()
+export class UpdateCertificateInput {
+  @Field(() => Int)
+  id: number;
+
+  @Field({ nullable: true })
+  title?: string;
+
+  @Field({ nullable: true })
+  institution?: string;
+
+  @Field(() => Int, { nullable: true })
+  year?: number;
+
+  @Field({ nullable: true })
+  fileUrl?: string;
 }
 
 // =========================================================
@@ -223,7 +275,7 @@ export class CreateProviderInput {
   @Field({ nullable: true })
   @IsOptional()
   @IsString()
-  bio?: string;
+  company?: string;
 
   @Field({ nullable: true })
   @IsOptional()
@@ -239,7 +291,7 @@ export class CreateProviderInput {
 
 @InputType()
 export class UpdateProviderInput extends CreateProviderInput {
-  @Field(() => Int)
+  @Field(() => Int, { nullable: true })
   @IsInt()
-  id: number;
+  id?: number;
 }

@@ -7,8 +7,8 @@
     "isolatedModules": false,
 
     /* ⚙️ Runtime */
-"module": "CommonJS",
-"target": "ES2020",
+    "module": "CommonJS",
+    "target": "ES2020",
     "moduleResolution": "Node",
 
     /* 📦 Interop */

@@ -21,6 +21,8 @@ import {
   BankAccount,
   UpdateProviderInput,
   BankAccountInput,
+  ProviderReview,
+  CreateReviewInput,
 } from 'src/graphql/entities/provider.entity';
 import { User } from 'src/graphql/entities/user.entity';
 
@@ -62,6 +64,16 @@ export class ProvidersResolver {
     @Args('input') input: UpdateProviderInput,
   ): Promise<Provider> {
     return this.providersService.updateProviderData(id, input);
+  }
+
+  @Mutation(() => ProviderReview)
+  @UseGuards(JwtAuthGuard)
+  async createReview(
+    @Args('input') input: CreateReviewInput,
+    @Context() context: any,
+  ) {
+    const userId = context.req.user.id;
+    return this.providersService.createReview(userId, input);
   }
 
   /**

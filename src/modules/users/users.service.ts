@@ -37,12 +37,28 @@ export class UserService {
           include: {
             bank: true,
             services: {
-              include: { service: true },
+              include: {
+                service: {
+                  include: {
+                    category: true,
+                  },
+                },
+              },
+            },
+            reviews: true,
+            certificates: true,
+          },
+        },
+        orders: {
+          include: {
+            serviceProvider: {
+              include: {
+                service: true,
+                provider: true,
+              },
             },
           },
         },
-        orders: true,
-        reviews: true,
       },
     });
 

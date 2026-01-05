@@ -109,7 +109,7 @@ model Provider {
 
   bank         BankAccount?
   reviews      ProviderReview[]
-  certificates ProviderCertificate[]
+  certificates ProviderCertificate[]s
   services     ServiceProvider[]
   user         User                  @relation(fields: [userId], references: [id])
 
@@ -147,16 +147,22 @@ model ServiceProvider {
 // =========================================================
 model ProviderReview {
   id         Int      @id @default(autoincrement())
-  providerId Int
-  clientId   Int
-  orderId    Int?     @unique
   rating     Int
   comment    String?
   createdAt  DateTime @default(now())
 
-  provider Provider @relation(fields: [providerId], references: [id])
-  client   User     @relation("ClientReviews", fields: [clientId], references: [id])
-  order    Order?   @relation(fields: [orderId], references: [id])
+  // Relación con el Cliente (User)
+  clientId   Int
+  client     User     @relation(fields: [clientId], references: [id])
+
+  // Relación con el Proveedor
+  providerId Int
+  provider   Provider @relation(fields: [providerId], references: [id])
+
+  // Relación con la Orden
+  // El campo orderId debe ser unique para garantizar 1 review por orden
+  orderId    Int?     @unique
+  order      Order?   @relation(fields: [orderId], references: [id])
 }
 
 model ProviderCertificate {
@@ -194,24 +200,28 @@ model BankAccount {
 // 7. ÓRDENES Y PAGOS
 // =========================================================
 model Order {
-  id       Int  @id @default(autoincrement())
-  clientId Int
-  client   User @relation("ClientOrders", fields: [clientId], references: [id])
+  id                Int              @id @default(autoincrement())
+  clientId          Int
+  client            User             @relation("ClientOrders", fields: [clientId], references: [id])
 
-  total  Float
-  status OrderStatus @default(PENDING)
+  total             Float
+  status            OrderStatus      @default(PENDING)
 
-  wcOrderId  Int?
-  wcOrderKey String?
+  wcOrderId         Int?
+  wcOrderKey        String?
 
   serviceProviderId Int?
   serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
 
-  payment Payment?
-  review  ProviderReview?
+  // Relación con el pago
+  payment           Payment?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Relación 1:1 con la reseña (Review)
+  // Se agrega @relation para permitir que la orden conozca su reseña
+  review            ProviderReview?
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 }
 
 model Payment {

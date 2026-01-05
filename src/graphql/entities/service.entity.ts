@@ -110,11 +110,6 @@ export class CreateServiceInput {
   @Field()
   @IsNotEmpty()
   @IsString()
-  name: string;
-
-  @Field()
-  @IsNotEmpty()
-  @IsString()
   slug: string;
 
   @Field({ nullable: true })
@@ -197,6 +192,9 @@ export class LinkServiceProviderInput {
 export class ServiceDetail extends Service {
   @Field(() => Provider, { nullable: true })
   provider?: Provider;
+
+  @Field(() => Service, { nullable: true })
+  service?: Service;
 
   @Field(() => Float, { nullable: true })
   price?: number;

@@ -170,21 +170,6 @@ export class AuthService {
         status: 1,
         registered: new Date(),
         // Los datos de nombre y teléfono se guardan directamente en la tabla Provider
-        provider: {
-          create: {
-            rut: identity.rut,
-            name:
-              identity.company || `${identity.firstName} ${identity.lastName}`,
-            slug: (identity.company || username)
-              .toLowerCase()
-              .replace(/ /g, '-'),
-            phone: identity.phone, // Campo nativo en tabla Provider
-            location: 'Chile',
-          },
-        },
-      },
-      include: {
-        provider: true,
       },
     });
 
