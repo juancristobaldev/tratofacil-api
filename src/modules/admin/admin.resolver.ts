@@ -1,7 +1,7 @@
 // juancristobaldev/tratofacil-api/src/modules/admin/admin.resolver.ts
 
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { NotFoundException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
@@ -19,15 +19,53 @@ import {
   ProviderReview,
   ProviderCertificate,
 } from 'src/graphql/entities/provider.entity';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Resolver()
 @UseGuards(JwtAuthGuard)
 export class AdminResolver {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   // ==========================================
   // ADMIN QUERIES (Lectura Global)
   // ==========================================
+  @Query(() => [ProviderCertificate])
+  async getCertificates(
+    @Args('sortOrder', { nullable: true, defaultValue: 'desc' })
+    sortOrder: 'asc' | 'desc',
+
+    @Args('verified', { nullable: true })
+    verified?: boolean,
+  ) {
+    return this.adminService.getCertificates(sortOrder, verified);
+  }
+
+  // ============================
+  // QUERY: CERTIFICADO POR ID
+  // ============================
+  @Query(() => ProviderCertificate)
+  async getCertificateById(@Args('id', { type: () => Int }) id: number) {
+    return this.adminService.getCertificateById(id);
+  }
+
+  // ============================
+  // MUTATION: APROBAR
+  // ============================
+  @Mutation(() => ProviderCertificate)
+  async approveCertificate(@Args('id', { type: () => Int }) id: number) {
+    return this.adminService.approveCertificate(id);
+  }
+
+  // ============================
+  // MUTATION: RECHAZAR
+  // ============================
+  @Mutation(() => ProviderCertificate)
+  async rejectCertificate(@Args('id', { type: () => Int }) id: number) {
+    return this.adminService.rejectCertificate(id);
+  }
 
   @Query(() => [User], {
     name: 'adminUsers',

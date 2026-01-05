@@ -99,6 +99,11 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+type Hobby {
+  id: Int!
+  name: String!
+}
+
 input IdentityInput {
   company: String
   firstName: String!
@@ -125,6 +130,7 @@ type Mutation {
   adminUpdateService(categoryId: Int, description: String, id: Int!, imageUrl: String, name: String, slug: String): Service!
   adminUpdateUser(id: Int!, role: Role, status: Int): User!
   adminVerifyCertificate(id: Int!, verified: Boolean!): ProviderCertificate!
+  approveCertificate(id: Int!): ProviderCertificate!
 
   """Confirma el código y crea el perfil de usuario + proveedor"""
   confirmEmailAndCreateUser(code: String!, credentials: CredentialsInput!, identity: IdentityInput!): AuthType!
@@ -148,6 +154,7 @@ type Mutation {
   """Registra un usuario nuevo (Cliente por defecto)"""
   register(input: RegisterUserInput!): AuthType!
   registerProvider(input: CreateProviderInput!): Provider!
+  rejectCertificate(id: Int!): ProviderCertificate!
   updateBank(input: BankAccountInput!, providerId: Int!): BankAccount!
   updateCategory(id: Int!, input: UpdateCategoryInput!): Category!
   updateCertificate(input: UpdateCertificateInput!): ProviderCertificate!
@@ -216,6 +223,7 @@ type Provider {
   bio: String
   certificates: [ProviderCertificate]
   createdAt: DateTime!
+  hobbys: [Hobby!]
   id: Int!
   location: String
   logoUrl: String
@@ -235,6 +243,7 @@ type ProviderCertificate {
   fileUrl: String!
   id: Int!
   institution: String
+  provider: ProviderType
   providerId: Int!
   title: String!
   verified: Boolean!
@@ -251,6 +260,12 @@ type ProviderReview {
   orderId: Int
   providerId: Int!
   rating: Int!
+}
+
+type ProviderType {
+  id: Int!
+  name: String!
+  user: User
 }
 
 type Query {
@@ -273,6 +288,8 @@ type Query {
   adminUsers: [User!]!
   categories: [Category!]!
   category(id: Int!): Category!
+  getCertificateById(id: Int!): ProviderCertificate!
+  getCertificates(sortOrder: String = "desc", verified: Boolean): [ProviderCertificate!]!
   getMyCertificates: [ProviderCertificate!]!
   getOrdersByProvider(providerId: Int!): [Order!]!
   getServicesProvider(providerId: Int!): [Service!]!

@@ -104,6 +104,18 @@ export class CreateReviewInput {
 // =========================================================
 // 3. PROVIDER CERTIFICATE ENTITY
 // =========================================================
+
+@ObjectType()
+export class ProviderType {
+  @Field(() => Int)
+  id: number;
+
+  @Field()
+  name: string;
+  @Field(() => User, { nullable: true })
+  user: User;
+}
+
 @ObjectType()
 export class ProviderCertificate {
   @Field(() => Int)
@@ -111,6 +123,9 @@ export class ProviderCertificate {
 
   @Field(() => Int)
   providerId: number;
+
+  @Field(() => ProviderType, { nullable: true })
+  provider?: ProviderType;
 
   @Field()
   title: string;
@@ -164,6 +179,14 @@ export class UpdateCertificateInput {
   fileUrl?: string;
 }
 
+@ObjectType()
+export class Hobby {
+  @Field(() => Int)
+  id: number;
+
+  @Field(() => String)
+  name: string;
+}
 // =========================================================
 // 4. MAIN PROVIDER ENTITY
 // =========================================================
@@ -217,6 +240,9 @@ export class Provider {
 
   @Field(() => [ServiceProvider], { nullable: 'itemsAndList' })
   services?: ServiceProvider[];
+
+  @Field(() => [Hobby], { nullable: true })
+  hobbys?: Hobby[];
 }
 
 // =========================================================

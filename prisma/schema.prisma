@@ -113,8 +113,17 @@ model Provider {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  hobbys Hobby[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Hobby {
+  id Int @unique
+  name String
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  providerId       Int 
 }
 
 // =========================================================

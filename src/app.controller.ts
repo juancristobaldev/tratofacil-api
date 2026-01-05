@@ -106,23 +106,22 @@ export class AppController {
     }
 
     // ===============================
-    // 2. Nombre seguro
+    // 2. Nombre seguro (.pdf)
     // ===============================
-    const key = `${randomUUID()}.pdf.gz`;
+    const key = `${randomUUID()}.pdf`;
     const filePath = path.join(dir, key);
 
     // ===============================
-    // 3. Comprimir y guardar
+    // 3. Guardar PDF directamente
     // ===============================
-    const compressed = zlib.gzipSync(file.buffer);
-
-    fs.writeFileSync(filePath, compressed);
+    fs.writeFileSync(filePath, file.buffer);
 
     // ===============================
-    // 4. Retornar solo la key
+    // 4. Retornar la key
     // ===============================
     return { key };
   }
+
   @Post('/upload/image')
   @UseInterceptors(
     FileInterceptor('file', {

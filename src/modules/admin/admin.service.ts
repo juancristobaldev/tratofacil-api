@@ -10,6 +10,7 @@ import { Role } from 'src/graphql/enums/role.enum';
 import { OrderStatus } from 'src/graphql/enums/order-status.enum';
 import * as fs from 'fs';
 import { join } from 'path';
+import { ProviderCertificate } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
@@ -19,6 +20,90 @@ export class AdminService {
    * Utilidad interna para eliminar archivos del sistema de archivos.
    * Evita errores si el archivo no existe y protege contra URLs externas.
    */
+
+  async getCertificates(
+    sortOrder: 'asc' | 'desc' = 'desc',
+    verified?: boolean,
+  ): Promise<ProviderCertificate[]> {
+    const whereClause: any = {};
+
+    // Si se proporciona el filtro de estado, lo aplicamos
+    if (verified !== undefined && verified !== null) {
+      whereClause.verified = verified;
+    }
+
+    return this.prisma.providerCertificate.findMany({
+      where: whereClause,
+      orderBy: {
+        createdAt: sortOrder,
+      },
+      include: {
+        provider: {
+          include: {
+            user: true, // Incluimos el usuario para que el admin sepa quién subió el certificado
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Obtiene un certificado específico por su ID.
+   * Útil para la visualización detallada (el modal).
+   */
+  async getCertificateById(id: number): Promise<ProviderCertificate> {
+    const certificate = await this.prisma.providerCertificate.findUnique({
+      where: { id },
+      include: {
+        provider: true,
+      },
+    });
+
+    if (!certificate) {
+      throw new NotFoundException(`Certificado con ID ${id} no encontrado.`);
+    }
+
+    return certificate;
+  }
+
+  /**
+   * Aprueba un certificado cambiando su estado de verificación a true.
+   */
+  async approveCertificate(id: number): Promise<ProviderCertificate> {
+    // Primero verificamos que exista
+    await this.getCertificateById(id);
+
+    return this.prisma.providerCertificate.update({
+      where: { id },
+      data: {
+        verified: true,
+      },
+      include: {
+        provider: true,
+      },
+    });
+  }
+
+  /**
+   * Rechaza un certificado.
+   * En este flujo, "rechazar" establece verified en false.
+   * (Nota: Si la lógica de negocio requiere eliminar el archivo, se cambiaría a .delete)
+   */
+  async rejectCertificate(id: number): Promise<ProviderCertificate> {
+    // Primero verificamos que exista
+    await this.getCertificateById(id);
+
+    return this.prisma.providerCertificate.update({
+      where: { id },
+      data: {
+        verified: false,
+      },
+      include: {
+        provider: true,
+      },
+    });
+  }
+
   private deleteFile(fileUrl: string) {
     if (!fileUrl || fileUrl.startsWith('http')) return;
     try {

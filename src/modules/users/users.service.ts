@@ -35,6 +35,7 @@ export class UserService {
       include: {
         provider: {
           include: {
+            hobbys: true,
             bank: true,
             services: {
               include: {
