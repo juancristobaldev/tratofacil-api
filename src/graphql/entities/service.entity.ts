@@ -68,6 +68,9 @@ export class Service {
   @Field()
   slug: string;
 
+  @Field(() => String)
+  image?: string;
+
   @Field(() => String, { nullable: true })
   description?: string | null;
 

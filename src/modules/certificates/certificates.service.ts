@@ -8,30 +8,58 @@ import {
   UpdateCertificateInput,
 } from 'src/graphql/entities/provider.entity';
 import { PrismaService } from 'src/prisma/prisma.service';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 @Injectable()
 export class CertificatesService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // ===============================
+  // Utils
+  // ===============================
+  private async safeUnlink(fileUrl?: string) {
+    if (!fileUrl) return;
+
+    try {
+      const filePath = path.join(process.cwd(), fileUrl);
+      await fs.unlink(filePath);
+    } catch (error: any) {
+      // Si no existe, no rompemos el flujo
+      if (error.code !== 'ENOENT') {
+        console.error('Error eliminando archivo:', error);
+      }
+    }
+  }
+
+  // ===============================
+  // Queries
+  // ===============================
   async findAllByUser(userId: number) {
-    // Primero encontramos al proveedor asociado a ese usuario
-    const provider = await this.prisma.provider.findUnique({
+    const provider = await this.prisma.provider.findFirst({
       where: { userId },
     });
 
     if (!provider) return [];
 
-    // Retornamos sus certificados
     return this.prisma.providerCertificate.findMany({
       where: { providerId: provider.id },
       orderBy: { createdAt: 'desc' },
     });
   }
-  /**
-   * Crea un nuevo certificado vinculado al perfil de proveedor del usuario
-   */
+
+  async findByProvider(providerId: number) {
+    return this.prisma.providerCertificate.findMany({
+      where: { providerId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ===============================
+  // Mutations
+  // ===============================
   async createCertificate(userId: number, input: CreateCertificateInput) {
-    // 1. Buscamos el proveedor asociado al usuario
-    const provider = await this.prisma.provider.findUnique({
+    const provider = await this.prisma.provider.findFirst({
       where: { userId },
     });
 
@@ -41,23 +69,18 @@ export class CertificatesService {
       );
     }
 
-    // 2. Creamos el certificado
     return this.prisma.providerCertificate.create({
       data: {
         ...input,
         providerId: provider.id,
-        verified: false, // Por defecto no verificado hasta revisión administrativa
+        verified: false,
       },
     });
   }
 
-  /**
-   * Actualiza un certificado existente verificando propiedad
-   */
   async updateCertificate(userId: number, input: UpdateCertificateInput) {
     const { id, ...data } = input;
 
-    // 1. Verificamos que el certificado exista y pertenezca al usuario
     const certificate = await this.prisma.providerCertificate.findUnique({
       where: { id },
       include: { provider: true },
@@ -73,21 +96,25 @@ export class CertificatesService {
       );
     }
 
-    // 2. Actualizamos
+    // 🧠 Si cambia el archivo, borramos el anterior
+    if (
+      data.fileUrl &&
+      certificate.fileUrl &&
+      data.fileUrl !== certificate.fileUrl
+    ) {
+      await this.safeUnlink(certificate.fileUrl);
+    }
+
     return this.prisma.providerCertificate.update({
       where: { id },
       data: {
         ...data,
-        verified: false, // Si edita el contenido, se pierde la verificación previa
+        verified: false, // pierde verificación al editar
       },
     });
   }
 
-  /**
-   * Elimina un certificado verificando propiedad
-   */
   async deleteCertificate(userId: number, id: number): Promise<boolean> {
-    // 1. Verificamos propiedad
     const certificate = await this.prisma.providerCertificate.findUnique({
       where: { id },
       include: { provider: true },
@@ -103,21 +130,13 @@ export class CertificatesService {
       );
     }
 
-    // 2. Eliminamos
+    // 🧹 Borramos el archivo físico
+    await this.safeUnlink(certificate.fileUrl);
+
     await this.prisma.providerCertificate.delete({
       where: { id },
     });
 
     return true;
-  }
-
-  /**
-   * Obtiene todos los certificados de un proveedor específico
-   */
-  async findByProvider(providerId: number) {
-    return this.prisma.providerCertificate.findMany({
-      where: { providerId },
-      orderBy: { createdAt: 'desc' },
-    });
   }
 }

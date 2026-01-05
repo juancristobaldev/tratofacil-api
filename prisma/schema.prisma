@@ -71,7 +71,7 @@ model Category {
   description String?
   parentId    Int?
 
-  // ✅ CORRECCIÓN: Agregado @relation("CategoryServices") para coincidir con Service
+  image       String?
   services Service[] @relation("CategoryServices")
 
   @@index([parentId])
@@ -82,10 +82,9 @@ model Service {
   name        String
   slug        String  @unique
   description String?
-
+  image       String?
   categoryId Int?
-  // ✅ Aquí ya tenías el nombre "CategoryServices", por eso fallaba el otro lado
-  category   Category? @relation("CategoryServices", fields: [categoryId], references: [id])
+  category   Category? @relation("CategoryServices", fields: [categoryId], references: [id], onDelete: Cascade)
 
   serviceProviders ServiceProvider[]
 }
@@ -103,22 +102,23 @@ model Provider {
   location String?
   logoUrl  String?
 
-  rut      String?
-  bio      String?
-  phone    String?
+  rut   String?
+  bio   String?
+  phone String?
 
   bank         BankAccount?
   reviews      ProviderReview[]
-  certificates ProviderCertificate[]s
+  certificates ProviderCertificate[]
   services     ServiceProvider[]
-  user         User                  @relation(fields: [userId], references: [id])
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 // =========================================================
-// 4. SERVICE PROVIDER (Oferta Específica)
+// 4. SERVICE PROVIDER
 // =========================================================
 model ServiceProvider {
   id         Int @id @default(autoincrement())
@@ -134,8 +134,8 @@ model ServiceProvider {
 
   orders Order[]
 
-  service  Service  @relation(fields: [serviceId], references: [id])
-  provider Provider @relation(fields: [providerId], references: [id])
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@unique([serviceId, providerId])
   @@index([providerId])
@@ -146,23 +146,19 @@ model ServiceProvider {
 // 5. REVIEWS Y CERTIFICADOS
 // =========================================================
 model ProviderReview {
-  id         Int      @id @default(autoincrement())
-  rating     Int
-  comment    String?
-  createdAt  DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
 
-  // Relación con el Cliente (User)
-  clientId   Int
-  client     User     @relation(fields: [clientId], references: [id])
+  clientId Int
+  client   User @relation("ClientReviews", fields: [clientId], references: [id], onDelete: Cascade)
 
-  // Relación con el Proveedor
   providerId Int
-  provider   Provider @relation(fields: [providerId], references: [id])
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
-  // Relación con la Orden
-  // El campo orderId debe ser unique para garantizar 1 review por orden
-  orderId    Int?     @unique
-  order      Order?   @relation(fields: [orderId], references: [id])
+  orderId Int?   @unique
+  order   Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model ProviderCertificate {
@@ -175,7 +171,7 @@ model ProviderCertificate {
   verified    Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  provider Provider @relation(fields: [providerId], references: [id])
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 }
 
 // =========================================================
@@ -200,34 +196,31 @@ model BankAccount {
 // 7. ÓRDENES Y PAGOS
 // =========================================================
 model Order {
-  id                Int              @id @default(autoincrement())
-  clientId          Int
-  client            User             @relation("ClientOrders", fields: [clientId], references: [id])
+  id Int @id @default(autoincrement())
 
-  total             Float
-  status            OrderStatus      @default(PENDING)
+  clientId Int
+  client   User @relation("ClientOrders", fields: [clientId], references: [id], onDelete: Cascade)
 
-  wcOrderId         Int?
-  wcOrderKey        String?
+  total      Float
+  status     OrderStatus @default(PENDING)
+  wcOrderId  Int?
+  wcOrderKey String?
 
   serviceProviderId Int?
-  serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
+  serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id], onDelete: Cascade)
 
-  // Relación con el pago
-  payment           Payment?
+  payment Payment?
+  review  ProviderReview?
 
-  // Relación 1:1 con la reseña (Review)
-  // Se agrega @relation para permitir que la orden conozca su reseña
-  review            ProviderReview?
-
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Payment {
-  id      Int   @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
   orderId Int   @unique
-  order   Order @relation(fields: [orderId], references: [id])
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   amount        Float
   provider      PaymentProvider

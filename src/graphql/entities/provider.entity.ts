@@ -290,8 +290,42 @@ export class CreateProviderInput {
 }
 
 @InputType()
-export class UpdateProviderInput extends CreateProviderInput {
+export class UpdateProviderInput {
   @Field(() => Int, { nullable: true })
   @IsInt()
   id?: number;
+
+  @Field({ nullable: true })
+  @IsString()
+  name?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsString()
+  rut?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsUrl()
+  logoUrl?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  company?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @Field(() => BankAccountInput, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BankAccountInput)
+  bank?: BankAccountInput;
 }

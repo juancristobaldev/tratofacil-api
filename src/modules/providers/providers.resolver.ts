@@ -23,6 +23,7 @@ import {
   BankAccountInput,
   ProviderReview,
   CreateReviewInput,
+  CreateProviderInput,
 } from 'src/graphql/entities/provider.entity';
 import { User } from 'src/graphql/entities/user.entity';
 
@@ -43,7 +44,7 @@ export class ProvidersResolver {
   @Mutation(() => Provider)
   @UseGuards(JwtAuthGuard)
   async registerProvider(
-    @Args('input') input: UpdateProviderInput, // Usamos el input alineado al service
+    @Args('input') input: CreateProviderInput, // Usamos el input alineado al service
     @Context() context: any,
   ) {
     // El sub suele ser el estándar en JWT para el ID del usuario

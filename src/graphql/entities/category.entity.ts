@@ -23,6 +23,9 @@ export class Category {
   @Field(() => String)
   slug: string;
 
+  @Field(() => String)
+  image?: string;
+
   @Field(() => String, { nullable: true })
   description?: string | null;
 

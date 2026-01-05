@@ -33,6 +33,7 @@ input BankAccountInput {
 type Category {
   description: String
   id: Int!
+  image: String!
   name: String!
   parentId: Int
 
@@ -60,6 +61,16 @@ input CreateOrderInput {
   total: Float!
   wcOrderId: Int
   wcOrderKey: String
+}
+
+input CreateProviderInput {
+  bank: BankAccountInput
+  company: String
+  location: String
+  logoUrl: String
+  name: String!
+  phone: String
+  rut: String!
 }
 
 input CreateReviewInput {
@@ -101,6 +112,16 @@ input LoginInput {
 }
 
 type Mutation {
+  adminCreateCategory(description: String, name: String!, slug: String!): Category!
+  adminDeleteCategory(id: Int!): Boolean!
+  adminDeleteOrder(id: Int!): Boolean!
+  adminDeleteReview(id: Int!): Boolean!
+  adminDeleteService(id: Int!): Boolean!
+  adminDeleteUser(id: Int!): Boolean!
+  adminUpdateOrderStatus(id: Int!, status: OrderStatus!): Order!
+  adminUpdateUserRole(id: Int!, role: Role!): User!
+  adminVerifyCertificate(id: Int!, verified: Boolean!): Boolean!
+
   """Confirma el código y crea el perfil de usuario + proveedor"""
   confirmEmailAndCreateUser(code: String!, credentials: CredentialsInput!, identity: IdentityInput!): AuthType!
   confirmPayment(token: String!): Order!
@@ -122,7 +143,7 @@ type Mutation {
 
   """Registra un usuario nuevo (Cliente por defecto)"""
   register(input: RegisterUserInput!): AuthType!
-  registerProvider(input: UpdateProviderInput!): Provider!
+  registerProvider(input: CreateProviderInput!): Provider!
   updateBank(input: BankAccountInput!, providerId: Int!): BankAccount!
   updateCategory(id: Int!, input: UpdateCategoryInput!): Category!
   updateCertificate(input: UpdateCertificateInput!): ProviderCertificate!
@@ -229,6 +250,12 @@ type ProviderReview {
 }
 
 type Query {
+  adminCategories: [Category!]!
+  adminOrders: [Order!]!
+  adminProviders: [Provider!]!
+  adminReviews: [ProviderReview!]!
+  adminServices: [Service!]!
+  adminUsers: [User!]!
   categories: [Category!]!
   category(id: Int!): Category!
   getMyCertificates: [ProviderCertificate!]!
@@ -268,6 +295,7 @@ type Service {
   categoryId: Int
   description: String
   id: Int!
+  image: String!
   name: String!
   serviceProviders: [ServiceProvider]
   slug: String!
@@ -287,6 +315,7 @@ type ServiceDetail {
   description: String
   hasHomeVisit: Boolean
   id: Int!
+  image: String!
   name: String!
   netAmount: Float
   price: Float
@@ -333,9 +362,9 @@ input UpdateProviderInput {
   id: Int
   location: String
   logoUrl: String
-  name: String!
+  name: String
   phone: String
-  rut: String!
+  rut: String
 }
 
 input UpdateServiceInput {
