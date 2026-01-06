@@ -21,9 +21,10 @@ export class ServicesResolver {
   @Query(() => [ServiceByCategory], { name: 'servicesByCategory' })
   async findByCategory(
     @Args('categorySlug', { type: () => String }) categorySlug: string,
+    @Args('city', { type: () => String, nullable: true }) city?: string,
   ): Promise<ServiceByCategory[]> {
     console.log(categorySlug);
-    return this.servicesService.findByCategory(categorySlug);
+    return this.servicesService.findByCategory(categorySlug, city);
   }
 
   /**

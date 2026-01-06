@@ -39,6 +39,7 @@ export class UserService {
             bank: true,
             services: {
               include: {
+                cities: true,
                 service: {
                   include: {
                     category: true,

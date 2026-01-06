@@ -12,6 +12,7 @@ import {
   ServiceProvider,
   UpdateServiceInput,
 } from 'src/graphql/entities/service.entity';
+import { ServiceProviderOnCity } from 'src/graphql/entities/register-provider';
 
 @Injectable()
 export class ServicesService {
@@ -28,21 +29,10 @@ export class ServicesService {
     const serviceBase = await this.prisma.service.findFirst({
       where: {
         slug: input.slug,
-        category: {
-          id: input.categoryId,
-        },
+        categoryId: input.categoryId,
       },
     });
 
-    const services = await this.prisma.service.findMany({
-      where: {
-        category: {
-          id: input.categoryId,
-        },
-      },
-    });
-
-    console.log({ services });
     if (!serviceBase) {
       throw new NotFoundException(
         'El servicio base seleccionado no existe en el catálogo',
@@ -63,7 +53,7 @@ export class ServicesService {
     // 3. Crear la oferta específica (ServiceProvider)
     const offerSlug = `${serviceBase.slug}-${provider.id}`;
 
-    return this.prisma.serviceProvider.create({
+    const serviceProviderRaw = await this.prisma.serviceProvider.create({
       data: {
         providerId: provider.id,
         serviceId: serviceBase.id,
@@ -71,28 +61,52 @@ export class ServicesService {
         description: input.description ?? serviceBase.description,
         price: input.price,
         hasHomeVisit: input.hasHomeVisit ?? false,
-        commission: input.price * 0.1, // Ejemplo 10%
+        commission: input.price * 0.1,
         netAmount: input.price * 0.9,
+        // Solo crear si hay city
+        cities: input.city
+          ? {
+              create: {
+                city: input.city,
+              },
+            }
+          : undefined,
       },
       include: {
         service: true,
         provider: true,
+        cities: true, // Prisma devuelve: ServiceProviderOnCity[]
       },
-    }) as unknown as ServiceProvider;
+    });
+
+    // ⚠️ Primer convertimos a unknown
+    const serviceProvider = serviceProviderRaw as unknown as ServiceProvider & {
+      cities: ServiceProviderOnCity[];
+    };
+
+    return serviceProvider;
   }
 
   /**
    * BUSCAR POR CATEGORÍA
    * Solución al error de asignación de ServiceProvider[]
    */
-  async findByCategory(categorySlug: string): Promise<ServiceByCategory[]> {
+  async findByCategory(
+    categorySlug: string,
+    city?: string,
+  ): Promise<ServiceByCategory[]> {
+    // Buscamos la categoría y sus servicios
     const category = await this.prisma.category.findUnique({
       where: { slug: categorySlug },
       include: {
         services: {
           include: {
             serviceProviders: {
-              include: { provider: true },
+              include: {
+                provider: true,
+                // 🔹 Incluimos cities solo si city viene definida
+                cities: city ? { where: { city } } : true,
+              },
             },
           },
         },
@@ -102,25 +116,29 @@ export class ServicesService {
     if (!category) return [];
 
     return category.services.map((service) => {
-      // MAPEAMOS CUIDADOSAMENTE PARA SATISFACER LA ENTIDAD ServiceProvider
-      const providers: ServiceProvider[] = service.serviceProviders.map(
-        (sp) => ({
-          id: sp.id,
-          serviceId: sp.serviceId,
-          providerId: sp.providerId,
-          slug: sp.slug,
-          description: sp.description,
-          price: sp.price,
-          commission: sp.commission,
-          netAmount: sp.netAmount,
-          hasHomeVisit: sp.hasHomeVisit,
-          // PASAMOS LAS RELACIONES PARA QUE EL ENTITY NO SE QUEJE
-          service: service as any,
-          provider: sp.provider as any,
-        }),
-      );
+      // Filtramos los serviceProviders por ciudad si se pasó city
+      const filteredProviders = city
+        ? service.serviceProviders.filter(
+            (sp) => sp.cities && sp.cities.length > 0,
+          )
+        : service.serviceProviders;
 
-      const prices = service.serviceProviders
+      // Mapeamos a ServiceProvider para la entidad
+      const providers: ServiceProvider[] = filteredProviders.map((sp) => ({
+        id: sp.id,
+        serviceId: sp.serviceId,
+        providerId: sp.providerId,
+        slug: sp.slug,
+        description: sp.description,
+        price: sp.price,
+        commission: sp.commission,
+        netAmount: sp.netAmount,
+        hasHomeVisit: sp.hasHomeVisit,
+        service: service as any,
+        provider: sp.provider as any,
+      }));
+
+      const prices = filteredProviders
         .map((sp) => sp.price)
         .filter((p) => p !== null) as number[];
       const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
@@ -131,8 +149,8 @@ export class ServicesService {
         slug: service.slug,
         description: service.description,
         price: minPrice,
-        hasHomeVisit: service.serviceProviders.some((sp) => sp.hasHomeVisit),
-        providers: providers,
+        hasHomeVisit: filteredProviders.some((sp) => sp.hasHomeVisit),
+        providers,
       };
     });
   }
@@ -174,6 +192,7 @@ export class ServicesService {
     const offers = await this.prisma.serviceProvider.findMany({
       where: { providerId: provider.id },
       include: {
+        cities: true,
         service: {
           include: { category: true },
         },
@@ -190,6 +209,7 @@ export class ServicesService {
           id: offer.id,
           price: offer.price,
           hasHomeVisit: offer.hasHomeVisit,
+          cities: offer.cities,
         },
       ],
     })) as unknown as Service[];
@@ -202,28 +222,50 @@ export class ServicesService {
     serviceProviderId: number,
     input: UpdateServiceInput,
     userId: number,
-  ): Promise<ServiceProvider> {
+  ): Promise<ServiceProvider & { cities: ServiceProviderOnCity[] }> {
+    // 1️⃣ Validar que el proveedor existe
     const provider = await this.prisma.provider.findUnique({
       where: { userId },
     });
+
+    // 2️⃣ Validar que la oferta existe y pertenece al proveedor
     const offer = await this.prisma.serviceProvider.findUnique({
       where: { id: serviceProviderId },
+      include: { cities: true }, // incluir ciudades existentes
     });
 
     if (!provider || !offer || offer.providerId !== provider.id) {
       throw new ForbiddenException('No autorizado para modificar esta oferta');
     }
 
-    return this.prisma.serviceProvider.update({
+    // 3️⃣ Actualizar la oferta
+    const updatedOffer = await this.prisma.serviceProvider.update({
       where: { id: serviceProviderId },
       data: {
-        description: input.description,
-        price: input.price,
+        description: input.description ?? offer.description,
+        price: input.price ?? offer.price,
         commission: input.price ? input.price * 0.1 : offer.commission,
         netAmount: input.price ? input.price * 0.9 : offer.netAmount,
+
+        // 4️⃣ Actualizar ciudades si vienen en input
+        cities: input.city
+          ? {
+              deleteMany: {}, // eliminar las relaciones actuales
+              create: [{ city: input.city }],
+            }
+          : undefined,
       },
-      include: { service: true, provider: true },
-    }) as unknown as ServiceProvider;
+      include: {
+        service: true,
+        provider: true,
+        cities: true, // incluir relaciones con ciudades
+      },
+    });
+
+    // 5️⃣ Tipado TS correcto usando unknown
+    return updatedOffer as unknown as ServiceProvider & {
+      cities: ServiceProviderOnCity[];
+    };
   }
 
   /**

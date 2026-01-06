@@ -10,10 +10,12 @@ import {
 import { Provider } from './provider.entity';
 import { Category } from './category.entity';
 import { Order } from './order.entity';
+import { ServiceProviderOnCity } from './register-provider';
 
 // =========================================================
 // 1. ENTIDAD PIVOTE: SERVICE PROVIDER (La Oferta Específica)
 // =========================================================
+
 @ObjectType()
 export class ServiceProvider {
   @Field(() => Int)
@@ -42,7 +44,8 @@ export class ServiceProvider {
 
   @Field(() => Boolean)
   hasHomeVisit: boolean;
-
+  @Field(() => [ServiceProviderOnCity], { nullable: true })
+  cities?: ServiceProviderOnCity;
   // RELACIONES
   @Field(() => Service, { nullable: true })
   service?: Service | null;
@@ -115,6 +118,8 @@ export class CreateServiceInput {
   @IsString()
   slug: string;
 
+  @Field(() => String, { nullable: true })
+  city?: string;
   @Field({ nullable: true })
   @IsOptional()
   @IsString()
@@ -139,6 +144,9 @@ export class UpdateServiceInput {
   @Field(() => Int)
   @IsInt()
   id: number;
+
+  @Field(() => String, { nullable: true })
+  city?: string;
 
   @Field({ nullable: true })
   @IsOptional()

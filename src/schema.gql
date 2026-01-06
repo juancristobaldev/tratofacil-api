@@ -57,6 +57,11 @@ input CreateCertificateInput {
   year: Int
 }
 
+input CreateHobbyInput {
+  name: String!
+  providerId: Int!
+}
+
 input CreateOrderInput {
   serviceProviderId: Int!
   total: Float!
@@ -83,6 +88,7 @@ input CreateReviewInput {
 
 input CreateServiceInput {
   categoryId: Int
+  city: String
   description: String
   hasHomeVisit: Boolean!
   price: Int!
@@ -98,6 +104,10 @@ input CredentialsInput {
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
 scalar DateTime
+
+input DeleteHobbyInput {
+  id: Int!
+}
 
 type Hobby {
   id: Int!
@@ -137,11 +147,13 @@ type Mutation {
   confirmPayment(token: String!): Order!
   createCategory(input: CreateCategoryInput!): Category!
   createCertificate(input: CreateCertificateInput!): ProviderCertificate!
+  createHobby(createHobbyInput: CreateHobbyInput!): Hobby!
   createOrder(input: CreateOrderInput!): Order!
   createReview(input: CreateReviewInput!): ProviderReview!
   createService(input: CreateServiceInput!): ServiceProvider!
   deleteCategory(id: Int!): Category!
   deleteCertificate(id: Int!): Boolean!
+  deleteHobby(deleteHobbyInput: DeleteHobbyInput!): Hobby!
   deleteService(id: Int!): Boolean!
 
   """Verifica disponibilidad de email y envía código de validación"""
@@ -293,6 +305,9 @@ type Query {
   getMyCertificates: [ProviderCertificate!]!
   getOrdersByProvider(providerId: Int!): [Order!]!
   getServicesProvider(providerId: Int!): [Service!]!
+  hobbies: [Hobby!]!
+  hobbiesByProvider(providerId: Int!): [Hobby!]!
+  hobby(id: Int!): Hobby!
   mainCategories: [Category!]!
   me: User!
   myProvider: Provider
@@ -301,7 +316,7 @@ type Query {
   providers: [Provider!]!
   publicProfile(userId: Int!): User
   serviceDetail(providerId: Int!, serviceId: Int!): ServiceDetail!
-  servicesByCategory(categorySlug: String!): [ServiceByCategory!]!
+  servicesByCategory(categorySlug: String!, city: String): [ServiceByCategory!]!
   subCategories: [Category!]!
   user(id: Int!): User
   users: [User!]!
@@ -358,6 +373,7 @@ type ServiceDetail {
 }
 
 type ServiceProvider {
+  cities: [ServiceProviderOnCity!]
   commission: Float
   description: String
   hasHomeVisit: Boolean!
@@ -370,6 +386,11 @@ type ServiceProvider {
   service: Service
   serviceId: Int!
   slug: String!
+}
+
+type ServiceProviderOnCity {
+  city: String!
+  serviceProviderId: Int!
 }
 
 input UpdateCategoryInput {
@@ -402,6 +423,7 @@ input UpdateProviderInput {
 
 input UpdateServiceInput {
   categoryId: Int
+  city: String
   description: String
   id: Int!
   name: String

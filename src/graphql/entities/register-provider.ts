@@ -1,4 +1,4 @@
-import { InputType, Field, ObjectType } from '@nestjs/graphql';
+import { InputType, Field, ObjectType, Int } from '@nestjs/graphql';
 import {
   IsEmail,
   IsNotEmpty,
@@ -17,6 +17,14 @@ import { BankAccountInput } from './provider.entity';
  * INPUT PARA EL REGISTRO INTEGRAL DE PROVEEDOR
  * Este DTO permite crear el Usuario y el Perfil de Proveedor en un solo paso.
  */
+@ObjectType()
+export class ServiceProviderOnCity {
+  @Field(() => Int)
+  serviceProviderId: number;
+  @Field(() => String)
+  city: string;
+}
+
 @InputType()
 export class RegisterProviderInput {
   // ==========================================

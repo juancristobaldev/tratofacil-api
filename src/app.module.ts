@@ -18,6 +18,7 @@ import { WordpressModule } from './modules/wordpress/wordpress.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { EmailModule } from './modules/email/email.module';
+import { HobbysModule } from './modules/hobbys/hobbys.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { EmailModule } from './modules/email/email.module';
     CertificatesModule,
     AdminModule,
     EmailModule,
+    HobbysModule,
   ],
   controllers: [AppController],
   providers: [AppService],

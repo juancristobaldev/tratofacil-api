@@ -70,8 +70,8 @@ model Category {
   slug        String  @unique
   description String?
   parentId    Int?
+  imageUrl    String?
 
-  imageUrl       String?
   services Service[] @relation("CategoryServices")
 
   @@index([parentId])
@@ -82,9 +82,9 @@ model Service {
   name        String
   slug        String  @unique
   description String?
-  imageUrl       String?
-  categoryId Int?
-  category   Category? @relation("CategoryServices", fields: [categoryId], references: [id], onDelete: Cascade)
+  imageUrl    String?
+  categoryId  Int?
+  category    Category? @relation("CategoryServices", fields: [categoryId], references: [id], onDelete: Cascade)
 
   serviceProviders ServiceProvider[]
 }
@@ -102,9 +102,9 @@ model Provider {
   location String?
   logoUrl  String?
 
-  rut   String?
-  bio   String?
-  phone String?
+  rut      String?
+  bio      String?
+  phone    String?
 
   bank         BankAccount?
   reviews      ProviderReview[]
@@ -120,14 +120,16 @@ model Provider {
 }
 
 model Hobby {
-  id Int @unique
-  name String
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  providerId       Int 
+  id         Int      @id @default(autoincrement())
+  name       String
+  providerId Int
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 // =========================================================
-// 4. SERVICE PROVIDER
+// 4. SERVICE PROVIDER (Oferta Específica)
 // =========================================================
 model ServiceProvider {
   id         Int @id @default(autoincrement())
@@ -146,13 +148,29 @@ model ServiceProvider {
   service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  // Relación con la tabla pivot de ciudades
+  cities ServiceProviderOnCity[]
+
   @@unique([serviceId, providerId])
   @@index([providerId])
   @@index([serviceId])
 }
 
 // =========================================================
-// 5. REVIEWS Y CERTIFICADOS
+// 5. CIUDADES (Tabla Pivot para relación N:M manual)
+// =========================================================
+model ServiceProviderOnCity {
+  serviceProviderId Int
+  city              String // El nombre de la ciudad servirá como parte de la PK
+
+  serviceProvider ServiceProvider @relation(fields: [serviceProviderId], references: [id], onDelete: Cascade)
+
+  @@id([serviceProviderId, city])
+  @@index([city])
+}
+
+// =========================================================
+// 6. REVIEWS Y CERTIFICADOS
 // =========================================================
 model ProviderReview {
   id        Int      @id @default(autoincrement())
@@ -184,7 +202,7 @@ model ProviderCertificate {
 }
 
 // =========================================================
-// 6. BANK ACCOUNT
+// 7. BANK ACCOUNT
 // =========================================================
 model BankAccount {
   id            Int     @id @default(autoincrement())
@@ -202,7 +220,7 @@ model BankAccount {
 }
 
 // =========================================================
-// 7. ÓRDENES Y PAGOS
+// 8. ÓRDENES Y PAGOS
 // =========================================================
 model Order {
   id Int @id @default(autoincrement())
@@ -241,7 +259,7 @@ model Payment {
 }
 
 // =========================================================
-// 8. VERIFICACIÓN DE EMAIL
+// 9. VERIFICACIÓN DE EMAIL
 // =========================================================
 model EmailVerification {
   id        Int      @id @default(autoincrement())
