@@ -56,18 +56,19 @@ model User {
   activationKey String   @default("")
   role          Role?    @default(CLIENT)
 
-  provider Provider?
-  orders   Order[]          @relation("ClientOrders")
-  reviews  ProviderReview[] @relation("ClientReviews")
+  provider      Provider?
+  orders        Order[]        @relation("ClientOrders")
+  productOrders OrderProduct[] @relation("ClientProductOrders")
+  reviews       ProviderReview[] @relation("ClientReviews")
 }
 
 // =========================================================
 // 2. CATEGORÍAS Y SERVICIOS
 // =========================================================
 model Category {
-  id          Int     @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   name        String
-  slug        String  @unique
+  slug        String   @unique
   description String?
   parentId    Int?
   imageUrl    String?
@@ -78,9 +79,9 @@ model Category {
 }
 
 model Service {
-  id          Int     @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   name        String
-  slug        String  @unique
+  slug        String   @unique
   description String?
   imageUrl    String?
   categoryId  Int?
@@ -110,6 +111,8 @@ model Provider {
   reviews      ProviderReview[]
   certificates ProviderCertificate[]
   services     ServiceProvider[]
+  products     Product[]
+  productOrders OrderProduct[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -170,7 +173,43 @@ model ServiceProviderOnCity {
 }
 
 // =========================================================
-// 6. REVIEWS Y CERTIFICADOS
+// 6. MARKETPLACE (PRODUCTOS)
+// =========================================================
+model CategoryProduct {
+  id          Int       @id @default(autoincrement())
+  name        String
+  slug        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products    Product[]
+}
+
+model Product {
+  id                Int             @id @default(autoincrement())
+  name              String
+  slug              String          @unique
+  description       String?
+  specifications    Json?           // Especificaciones del producto
+  price             Float           // Precio base del proveedor
+  stock             Int             @default(0)
+  imageUrl          String?
+  
+  providerId        Int
+  provider          Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  
+  categoryProductId Int
+  categoryProduct   CategoryProduct @relation(fields: [categoryProductId], references: [id], onDelete: Cascade)
+
+  orders            OrderProduct[]
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+// =========================================================
+// 7. REVIEWS Y CERTIFICADOS
 // =========================================================
 model ProviderReview {
   id        Int      @id @default(autoincrement())
@@ -179,7 +218,7 @@ model ProviderReview {
   createdAt DateTime @default(now())
 
   clientId Int
-  client   User @relation("ClientReviews", fields: [clientId], references: [id], onDelete: Cascade)
+  client    User @relation("ClientReviews", fields: [clientId], references: [id], onDelete: Cascade)
 
   providerId Int
   provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
@@ -202,7 +241,7 @@ model ProviderCertificate {
 }
 
 // =========================================================
-// 7. BANK ACCOUNT
+// 8. BANK ACCOUNT
 // =========================================================
 model BankAccount {
   id            Int     @id @default(autoincrement())
@@ -220,7 +259,7 @@ model BankAccount {
 }
 
 // =========================================================
-// 8. ÓRDENES Y PAGOS
+// 9. ÓRDENES Y PAGOS
 // =========================================================
 model Order {
   id Int @id @default(autoincrement())
@@ -243,6 +282,30 @@ model Order {
   updatedAt DateTime @updatedAt
 }
 
+model OrderProduct {
+  id Int @id @default(autoincrement())
+
+  clientId Int
+  client   User @relation("ClientProductOrders", fields: [clientId], references: [id], onDelete: Cascade)
+  
+  providerId Int
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity    Int     @default(1)
+  unitPrice   Float   // Precio histórico del producto
+  commission  Float   // Comisión calculada según rangos
+  total       Float   // (unitPrice * quantity) + commission
+  status      OrderStatus @default(PENDING)
+
+  payment PaymentProduct?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Payment {
   id Int @id @default(autoincrement())
 
@@ -258,8 +321,23 @@ model Payment {
   updatedAt DateTime @updatedAt
 }
 
+model PaymentProduct {
+  id Int @id @default(autoincrement())
+
+  orderProductId Int          @unique
+  orderProduct   OrderProduct @relation(fields: [orderProductId], references: [id], onDelete: Cascade)
+
+  amount        Float
+  provider      PaymentProvider
+  status        PaymentStatus   @default(INITIATED)
+  transactionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // =========================================================
-// 9. VERIFICACIÓN DE EMAIL
+// 10. VERIFICACIÓN DE EMAIL
 // =========================================================
 model EmailVerification {
   id        Int      @id @default(autoincrement())
