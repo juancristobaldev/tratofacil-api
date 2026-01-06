@@ -5,22 +5,18 @@ import {
   InternalServerErrorException,
   ForbiddenException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
-import {
-  CreateOrderInput,
-  WebpayResponse,
-} from 'src/graphql/entities/order.entity';
-import { PaymentStatus, PaymentProvider } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+import { PaymentStatus, PaymentProvider, OrderStatus } from '@prisma/client';
 import { WebpayPlus, Options, Environment } from 'transbank-sdk';
-import { OrderStatus } from 'src/graphql/enums/order-status.enum';
-import { CreateOrderProductInput } from 'src/graphql/entities/order-product.entity';
+import { CreateOrderProductInput } from '../../graphql/entities/order-product.entity';
+import { WebpayResponse } from '../../graphql/entities/order.entity';
 
 @Injectable()
-export class PaymentService {
+export class OrderProductService {
   constructor(private prisma: PrismaService) {}
 
   // =====================================================
-  // 1️⃣ Credenciales Webpay
+  // 1️⃣ Configuración de Transbank (Webpay Plus)
   // =====================================================
   private readonly commerceCode = process.env.COMMERCE_CODE!;
   private readonly apiKey = process.env.API_KEY!;
@@ -37,6 +33,9 @@ export class PaymentService {
     );
   }
 
+  // =====================================================
+  // 2️⃣ Crear Orden de Producto con Cálculo de Comisión
+  // =====================================================
   async createOrderProductWithPayment(
     userId: number,
     input: CreateOrderProductInput,
@@ -78,6 +77,7 @@ export class PaymentService {
     }
 
     const commission = totalAmount * commissionPercentage;
+    const netAmount = totalAmount - commission;
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Crear la orden de producto vinculada al cliente y proveedor
@@ -90,6 +90,7 @@ export class PaymentService {
           unitPrice: product.price,
           total: totalAmount,
           commission: commission,
+          netAmount: netAmount, // Dinero líquido para el proveedor
           status: OrderStatus.PENDING,
         },
       });
@@ -103,7 +104,7 @@ export class PaymentService {
       // 3. Crear el registro de pago inicial
       const payment = await tx.payment.create({
         data: {
-          orderId: order.id,
+          orderProductId: order.id,
           amount: totalAmount,
           provider: PaymentProvider.WEBPAY,
           status: PaymentStatus.INITIATED,
@@ -115,53 +116,13 @@ export class PaymentService {
   }
 
   // =====================================================
-  // 2️⃣ Crear Orden y Pago (Alineado con ServiceProvider)
-  // =====================================================
-  async createOrderWithPayment(userId: number, input: CreateOrderInput) {
-    // Buscamos la oferta específica del proveedor (ServiceProvider)
-    const offer = await this.prisma.serviceProvider.findUnique({
-      where: { id: input.serviceProviderId },
-    });
-
-    if (!offer) throw new NotFoundException('La oferta de servicio no existe');
-
-    const price = offer.price || 0;
-    if (price <= 0)
-      throw new BadRequestException('La oferta no tiene un precio válido');
-
-    return this.prisma.$transaction(async (tx) => {
-      // Creamos la orden vinculada a la oferta
-      const order = await tx.order.create({
-        data: {
-          clientId: userId,
-          total: price,
-          status: OrderStatus.PENDING,
-          serviceProviderId: offer.id,
-        },
-      });
-
-      // Creamos el registro de pago inicial
-      const payment = await tx.payment.create({
-        data: {
-          orderId: order.id,
-          amount: price,
-          provider: PaymentProvider.WEBPAY,
-          status: PaymentStatus.INITIATED,
-        },
-      });
-
-      return { order, payment };
-    });
-  }
-
-  // =====================================================
-  // 3️⃣ Iniciar Webpay
+  // 3️⃣ Iniciar Transacción Webpay
   // =====================================================
   async createWebpayTransaction(
     orderId: number,
     returnUrl: string,
   ): Promise<WebpayResponse> {
-    const order = await this.prisma.order.findUnique({
+    const order = await this.prisma.orderProduct.findUnique({
       where: { id: orderId },
       include: { payment: true },
     });
@@ -172,7 +133,7 @@ export class PaymentService {
     if (order.status === OrderStatus.COMPLETED)
       throw new BadRequestException('Orden ya pagada');
 
-    const buyOrder = `ORDER-${order.id}-${Date.now()}`;
+    const buyOrder = `PROD-ORD-${order.id}-${Date.now()}`;
     const sessionId = `SES-${order.clientId}-${Date.now()}`;
 
     try {
@@ -200,15 +161,17 @@ export class PaymentService {
   }
 
   // =====================================================
-  // 4️⃣ Confirmar pago Webpay
+  // 4️⃣ Confirmar Pago Webpay
   // =====================================================
   async confirmWebpayTransaction(token: string) {
     const payment = await this.prisma.payment.findFirst({
       where: { transactionId: token },
-      include: { order: true },
+      include: { orderProduct: true },
     });
 
-    if (!payment) throw new NotFoundException('Transacción no encontrada');
+    if (!payment || !payment.orderProduct) {
+      throw new NotFoundException('Transacción no encontrada');
+    }
 
     try {
       const commitResponse = await this.tbk().commit(token);
@@ -220,21 +183,31 @@ export class PaymentService {
       const newPaymentStatus = success
         ? PaymentStatus.CONFIRMED
         : PaymentStatus.FAILED;
-      const newOrderStatus = success ? OrderStatus.PENDING : OrderStatus.FAILED;
+      const newOrderStatus = success
+        ? OrderStatus.PROCESSING
+        : OrderStatus.FAILED;
 
       return await this.prisma.$transaction(async (tx) => {
+        // SI FALLA EL PAGO: Devolvemos el stock al producto
+        if (!success) {
+          await tx.product.update({
+            where: { id: payment.orderProduct.productId },
+            data: { stock: { increment: payment.orderProduct.quantity } },
+          });
+        }
+
         await tx.payment.update({
           where: { id: payment.id },
           data: { status: newPaymentStatus },
         });
 
-        return tx.order.update({
-          where: { id: payment.orderId },
+        return tx.orderProduct.update({
+          where: { id: payment.orderProductId },
           data: { status: newOrderStatus },
           include: {
             payment: true,
             client: true,
-            serviceProvider: { include: { service: true } },
+            product: { include: { provider: true } },
           },
         });
       });
@@ -246,31 +219,20 @@ export class PaymentService {
   }
 
   // =====================================================
-  // 5️⃣ Listar Órdenes por Proveedor (Nativo)
+  // 5️⃣ Listar Órdenes por Proveedor
   // =====================================================
   async getOrdersByProviderId(providerId: number) {
-    // Buscamos órdenes vinculadas a cualquier oferta (ServiceProvider) de este proveedor
-    return this.prisma.order.findMany({
+    return this.prisma.orderProduct.findMany({
       where: {
-        serviceProvider: {
-          providerId: providerId,
-        },
-        payment: {
-          status: PaymentStatus.CONFIRMED,
-        },
+        providerId: providerId,
+        payment: { status: PaymentStatus.CONFIRMED },
       },
       include: {
         client: true,
         payment: true,
-        serviceProvider: {
-          include: {
-            service: true,
-          },
-        },
+        product: true,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -282,19 +244,17 @@ export class PaymentService {
     status: OrderStatus,
     providerId: number,
   ) {
-    const order = await this.prisma.order.findUnique({
+    const order = await this.prisma.orderProduct.findUnique({
       where: { id: orderId },
-      include: { serviceProvider: true },
     });
 
-    // Validamos que la orden pertenezca al proveedor que intenta actualizarla
-    if (!order || order.serviceProvider?.providerId !== providerId) {
+    if (!order || order.providerId !== providerId) {
       throw new ForbiddenException(
         'No tienes permiso para actualizar esta orden',
       );
     }
 
-    return this.prisma.order.update({
+    return this.prisma.orderProduct.update({
       where: { id: orderId },
       data: { status },
     });

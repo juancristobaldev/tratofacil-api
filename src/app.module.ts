@@ -19,6 +19,10 @@ import { CertificatesModule } from './modules/certificates/certificates.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { EmailModule } from './modules/email/email.module';
 import { HobbysModule } from './modules/hobbys/hobbys.module';
+import { CategoriesProductService } from './categories-product/categories-product.service';
+import { CategoriesProductModule } from './modules/categories-product/categories-product.module';
+import { ProductModule } from './modules/product/product.module';
+import { OrderProductModule } from './modules/order-product/order-product.module';
 
 @Module({
   imports: [
@@ -46,8 +50,11 @@ import { HobbysModule } from './modules/hobbys/hobbys.module';
     AdminModule,
     EmailModule,
     HobbysModule,
+    CategoriesProductModule,
+    ProductModule,
+    OrderProductModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, CategoriesProductService],
 })
 export class AppModule {}
