@@ -109,7 +109,6 @@ export class CreateReviewInput {
 export class ProviderType {
   @Field(() => Int)
   id: number;
-
   @Field()
   name: string;
   @Field(() => User, { nullable: true })

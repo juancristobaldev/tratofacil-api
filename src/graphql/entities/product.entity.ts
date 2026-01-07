@@ -6,15 +6,57 @@ import {
   IsInt,
   IsNumber,
   Min,
-  IsUrl,
+  IsArray,
+  ValidateNested,
+  IsDate,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { Provider } from './provider.entity';
 import { CategoryProduct } from './category-product';
 
-/**
- * ENTIDAD PRODUCT (Output Object Type)
- * Alineada con el modelo 'Product' de Prisma.
- */
+// =========================================================
+// 1. ENTIDADES (Output Types)
+// =========================================================
+
+@ObjectType()
+export class ConditionDelivery {
+  @Field(() => Int)
+  id: number;
+
+  @Field(() => Int)
+  productId: number;
+
+  @Field(() => String)
+  deliveryType: string;
+
+  @Field(() => String)
+  shippingPayer: string;
+
+  @Field(() => Int)
+  maxDispatchDays: number;
+
+  @Field(() => Date)
+  confirmationDeadline: Date;
+
+  @Field(() => Date)
+  createdAt: Date;
+
+  @Field(() => Date)
+  updatedAt: Date;
+}
+
+@ObjectType()
+export class ProductImage {
+  @Field(() => Int)
+  id: number;
+
+  @Field(() => String)
+  url: string;
+
+  @Field(() => Int)
+  productId: number;
+}
+
 @ObjectType()
 export class Product {
   @Field(() => Int)
@@ -27,13 +69,7 @@ export class Product {
   slug: string;
 
   @Field(() => String, { nullable: true })
-  description?: string | null;
-
-  @Field(() => String, {
-    nullable: true,
-    description: 'Especificaciones del producto en formato JSON stringificado',
-  })
-  specifications?: string | null;
+  description?: string;
 
   @Field(() => Float)
   price: number;
@@ -41,16 +77,19 @@ export class Product {
   @Field(() => Int)
   stock: number;
 
-  @Field(() => String, { nullable: true })
-  imageUrl?: string | null;
-
   @Field(() => Int)
   providerId: number;
 
   @Field(() => Int)
   categoryProductId: number;
 
-  // RELACIONES
+  @Field(() => [ProductImage], { nullable: 'itemsAndList' })
+  images?: ProductImage[];
+
+  // ✅ Nueva relación anidada en la entidad
+  @Field(() => ConditionDelivery, { nullable: true })
+  deliveryCondition?: ConditionDelivery;
+
   @Field(() => Provider, { nullable: true })
   provider?: Provider;
 
@@ -59,114 +98,113 @@ export class Product {
 
   @Field(() => Date)
   createdAt: Date;
-
-  @Field(() => Date)
-  updatedAt: Date;
 }
 
-/**
- * INPUT PARA CREAR PRODUCTO
- */
+// =========================================================
+// 2. INPUTS (Input Types)
+// =========================================================
+
+@InputType()
+export class ConditionDeliveryInput {
+  @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
+  deliveryType: string;
+
+  @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
+  shippingPayer: string;
+
+  @Field(() => Int)
+  @IsInt()
+  @Min(0)
+  maxDispatchDays: number;
+
+  @Field(() => Date)
+  @IsNotEmpty()
+  @IsDate()
+  confirmationDeadline: Date;
+}
+
 @InputType()
 export class CreateProductInput {
   @Field(() => String)
-  @IsNotEmpty({ message: 'El nombre es obligatorio' })
-  @IsString()
+  @IsNotEmpty()
   name: string;
 
   @Field(() => String)
-  @IsNotEmpty({ message: 'El slug es obligatorio' })
-  @IsString()
+  @IsNotEmpty()
   slug: string;
 
   @Field(() => String, { nullable: true })
-  @IsOptional()
-  @IsString()
   description?: string;
-
-  @Field(() => String, {
-    nullable: true,
-    description: 'Debe enviarse como un JSON string (ej: "{"color": "rojo"}")',
-  })
-  @IsOptional()
-  @IsString()
-  specifications?: string;
 
   @Field(() => Float)
   @IsNumber()
-  @Min(0, { message: 'El precio no puede ser negativo' })
+  @Min(0)
   price: number;
 
-  @Field(() => Int, { defaultValue: 0 })
+  @Field(() => Int)
   @IsInt()
   @Min(0)
   stock: number;
 
-  @Field(() => String, { nullable: true })
-  @IsOptional()
-  @IsUrl({}, { message: 'La URL de la imagen no es válida' })
-  imageUrl?: string;
-
   @Field(() => Int)
-  @IsInt()
-  @IsNotEmpty()
   categoryProductId: number;
 
-  @Field(() => Int)
-  @IsInt()
+  @Field(() => [String], { nullable: true })
+  @IsOptional()
+  @IsArray()
+  imageUrls?: string[];
+
+  // ✅ Campo Conditions para creación
+  @Field(() => ConditionDeliveryInput)
   @IsNotEmpty()
-  providerId: number;
+  @ValidateNested()
+  @Type(() => ConditionDeliveryInput)
+  conditions: ConditionDeliveryInput;
 }
 
-/**
- * INPUT PARA ACTUALIZAR PRODUCTO
- */
 @InputType()
 export class UpdateProductInput {
   @Field(() => Int)
   @IsInt()
-  @IsNotEmpty()
   id: number;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   name?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   slug?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsString()
   description?: string;
-
-  @Field(() => String, { nullable: true })
-  @IsOptional()
-  @IsString()
-  specifications?: string;
 
   @Field(() => Float, { nullable: true })
   @IsOptional()
   @IsNumber()
-  @Min(0)
   price?: number;
 
   @Field(() => Int, { nullable: true })
   @IsOptional()
-  @IsInt()
-  @Min(0)
   stock?: number;
-
-  @Field(() => String, { nullable: true })
-  @IsOptional()
-  @IsUrl()
-  imageUrl?: string;
 
   @Field(() => Int, { nullable: true })
   @IsOptional()
-  @IsInt()
   categoryProductId?: number;
+
+  @Field(() => [String], { nullable: true })
+  @IsOptional()
+  imageUrls?: string[];
+
+  // ✅ Campo Conditions para actualización (opcional)
+  @Field(() => ConditionDeliveryInput, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ConditionDeliveryInput)
+  conditions?: ConditionDeliveryInput;
 }

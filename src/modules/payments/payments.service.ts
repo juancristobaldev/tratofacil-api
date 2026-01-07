@@ -114,6 +114,121 @@ export class PaymentService {
     });
   }
 
+  async createWebpayProductTransaction(
+    orderProductId: number,
+    returnUrl: string,
+  ): Promise<WebpayResponse> {
+    // Buscamos la orden de producto con su respectivo pago
+    const orderProduct = await this.prisma.orderProduct.findUnique({
+      where: { id: orderProductId },
+      include: { payment: true },
+    });
+
+    // Validaciones de negocio
+    if (!orderProduct)
+      throw new NotFoundException('Orden de producto no encontrada');
+    if (!orderProduct.payment)
+      throw new BadRequestException(
+        'No existe un registro de pago asociado a esta orden',
+      );
+    if (
+      orderProduct.status === OrderStatus.SUCCESS ||
+      orderProduct.status === OrderStatus.COMPLETED
+    )
+      throw new BadRequestException(
+        'Esta orden ya ha sido pagada satisfactoriamente',
+      );
+
+    // Generación de identificadores únicos para Transbank
+    const buyOrder = `PROD-ORD-${orderProduct.id}-${Date.now()}`;
+    const sessionId = `SES-CLI-${orderProduct.clientId}-${Date.now()}`;
+
+    try {
+      // Llamada al SDK de Transbank (tbk() debe devolver la instancia de WebpayPlus.Transaction)
+      const response = await this.tbk().create(
+        buyOrder,
+        sessionId,
+        orderProduct.total,
+        returnUrl,
+      );
+
+      // Actualizamos el PaymentProduct con el token recibido (transactionId)
+      await this.prisma.paymentProduct.update({
+        where: { id: orderProduct.payment.id },
+        data: { transactionId: response.token },
+      });
+
+      return {
+        token: response.token,
+        url: response.url,
+      };
+    } catch (error: any) {
+      throw new InternalServerErrorException(
+        'Error al iniciar transacción Webpay para producto: ' + error.message,
+      );
+    }
+  }
+
+  // =====================================================
+  // 2️⃣ Confirmar pago Webpay para Productos
+  // =====================================================
+  async confirmWebpayProductTransaction(token: string) {
+    // Buscamos el pago mediante el token de transacción
+    const payment = await this.prisma.paymentProduct.findFirst({
+      where: { transactionId: token },
+      include: { orderProduct: true },
+    });
+
+    if (!payment)
+      throw new NotFoundException('Transacción de producto no encontrada');
+
+    try {
+      // Confirmamos con Transbank
+      const commitResponse = await this.tbk().commit(token);
+
+      // Verificamos si la transacción fue autorizada
+      const success =
+        commitResponse.status === 'AUTHORIZED' &&
+        commitResponse.response_code === 0;
+
+      const newPaymentStatus = success
+        ? PaymentStatus.CONFIRMED
+        : PaymentStatus.FAILED;
+
+      // Si el pago es exitoso, marcamos la orden como SUCCESS (o PROCESSING según tu flujo)
+      const newOrderStatus = success ? OrderStatus.SUCCESS : OrderStatus.FAILED;
+
+      // Ejecutamos la actualización en una transacción de base de datos
+      return await this.prisma.$transaction(async (tx) => {
+        // 1. Actualizar el estado del pago
+        await tx.paymentProduct.update({
+          where: { id: payment.id },
+          data: { status: newPaymentStatus },
+        });
+
+        // 2. Actualizar la orden y retornar los datos completos para el frontend/email
+        return tx.orderProduct.update({
+          where: { id: payment.orderProductId },
+          data: { status: newOrderStatus },
+          include: {
+            payment: true,
+            client: true,
+            product: {
+              include: {
+                images: true,
+                provider: true,
+              },
+            },
+          },
+        });
+      });
+    } catch (error: any) {
+      throw new InternalServerErrorException(
+        'Error al confirmar transacción Webpay de producto: ' + error.message,
+      );
+    }
+  }
+
   // =====================================================
   // 2️⃣ Crear Orden y Pago (Alineado con ServiceProvider)
   // =====================================================
@@ -135,7 +250,7 @@ export class PaymentService {
         data: {
           clientId: userId,
           total: price,
-          status: OrderStatus.PENDING,
+          status: OrderStatus.PROCESSING,
           serviceProviderId: offer.id,
         },
       });
@@ -274,6 +389,48 @@ export class PaymentService {
     });
   }
 
+  async getOrdersProductsByProviderId(providerId: number) {
+    // Buscamos órdenes vinculadas a cualquier oferta (ServiceProvider) de este proveedor
+    return this.prisma.orderProduct.findMany({
+      where: {
+        providerId,
+        payment: {
+          status: PaymentStatus.CONFIRMED,
+        },
+      },
+      include: {
+        client: true,
+        payment: true,
+        product: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async updateOrderProductStatus(
+    orderId: number,
+    status: OrderStatus,
+    providerId: number,
+  ) {
+    const order = await this.prisma.orderProduct.findUnique({
+      where: { id: orderId },
+      include: { product: true, provider: true },
+    });
+
+    // Validamos que la orden pertenezca al proveedor que intenta actualizarla
+    if (!order || order.productId !== providerId) {
+      throw new ForbiddenException(
+        'No tienes permiso para actualizar esta orden',
+      );
+    }
+
+    return this.prisma.orderProduct.update({
+      where: { id: orderId },
+      data: { status },
+    });
+  }
   // =====================================================
   // 6️⃣ Actualizar Estado de la Orden
   // =====================================================

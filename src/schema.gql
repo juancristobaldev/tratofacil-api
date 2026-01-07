@@ -43,16 +43,33 @@ type Category {
 }
 
 type CategoryProduct {
-  """Lista de subcategorías pertenecientes a esta categoría"""
-  children: [CategoryProduct]
+  createdAt: DateTime!
   description: String
   id: Int!
   name: String!
 
-  """Categoría de nivel superior"""
-  parent: CategoryProduct
-  parentId: Int
+  """Lista de productos que pertenecen a esta categoría"""
+  products: [Product]
   slug: String!
+  updatedAt: DateTime!
+}
+
+type ConditionDelivery {
+  confirmationDeadline: DateTime!
+  createdAt: DateTime!
+  deliveryType: String!
+  id: Int!
+  maxDispatchDays: Int!
+  productId: Int!
+  shippingPayer: String!
+  updatedAt: DateTime!
+}
+
+input ConditionDeliveryInput {
+  confirmationDeadline: DateTime!
+  deliveryType: String!
+  maxDispatchDays: Int!
+  shippingPayer: String!
 }
 
 input CreateCategoryInput {
@@ -66,7 +83,6 @@ input CreateCategoryInput {
 input CreateCategoryProductInput {
   description: String
   name: String!
-  parentId: Int
   slug: String!
 }
 
@@ -89,18 +105,20 @@ input CreateOrderInput {
   wcOrderKey: String
 }
 
+input CreateOrderProductInput {
+  productId: Int!
+  quantity: Int!
+}
+
 input CreateProductInput {
   categoryProductId: Int!
+  conditions: ConditionDeliveryInput!
   description: String
-  imageUrl: String
+  imageUrls: [String!]
   name: String!
   price: Float!
-  providerId: Int!
   slug: String!
-
-  """Debe enviarse como un JSON string (ej: "{"color": "rojo"}")"""
-  specifications: String
-  stock: Int! = 0
+  stock: Int!
 }
 
 input CreateProviderInput {
@@ -179,12 +197,15 @@ type Mutation {
   """Confirma el código y crea el perfil de usuario + proveedor"""
   confirmEmailAndCreateUser(code: String!, credentials: CredentialsInput!, identity: IdentityInput!): AuthType!
   confirmPayment(token: String!): Order!
+  confirmProductPayment(token: String!): OrderProduct!
+  confirmWebpayProductTransaction(token: String!): OrderProduct!
   createCategory(input: CreateCategoryInput!): Category!
-  createCategoryProduct(createCategoryProductInput: CreateCategoryProductInput!): CategoryProduct!
+  createCategoryProduct(input: CreateCategoryProductInput!): CategoryProduct!
   createCertificate(input: CreateCertificateInput!): ProviderCertificate!
   createHobby(createHobbyInput: CreateHobbyInput!): Hobby!
   createOrder(input: CreateOrderInput!): Order!
-  createProduct(createProductInput: CreateProductInput!): Product!
+  createOrderProduct(input: CreateOrderProductInput!): OrderProductWithPaymentResponse!
+  createProduct(input: CreateProductInput!): Product!
   createReview(input: CreateReviewInput!): ProviderReview!
   createService(input: CreateServiceInput!): ServiceProvider!
   deleteCategory(id: Int!): Category!
@@ -194,7 +215,9 @@ type Mutation {
 
   """Verifica disponibilidad de email y envía código de validación"""
   findCredentialsAfterSendEmail(input: CredentialsInput!): Boolean!
+  initWebpayProductTransaction(orderId: Int!, returnUrl: String!): WebpayResponse!
   initiatePayment(orderId: Int!, returnUrl: String!): WebpayResponse!
+  initiateProductPayment(orderProductId: Int!, returnUrl: String!): WebpayResponse!
 
   """Inicia sesión y retorna el token con la info del usuario"""
   login(loginInput: LoginInput!): AuthType!
@@ -207,14 +230,15 @@ type Mutation {
   removeProduct(id: Int!): Product!
   updateBank(input: BankAccountInput!, providerId: Int!): BankAccount!
   updateCategory(id: Int!, input: UpdateCategoryInput!): Category!
-  updateCategoryProduct(updateCategoryProductInput: UpdateCategoryProductInput!): CategoryProduct!
+  updateCategoryProduct(input: UpdateCategoryProductInput!): CategoryProduct!
   updateCertificate(input: UpdateCertificateInput!): ProviderCertificate!
+  updateOrderProductStatus(orderId: Int!, status: OrderStatus!): OrderProduct!
   updateOrderStatus(orderId: Int!, providerId: Int!, status: OrderStatus!): Order!
-  updateProduct(updateProductInput: UpdateProductInput!): Product!
+  updateProduct(input: UpdateProductInput!): Product!
   updateProductStock(
     id: Int!
 
-    """Cantidad a añadir (positivo) o quitar (negativo)"""
+    """Cantidad a añadir (+) o quitar (-)"""
     quantity: Int!
   ): Product!
   updateProvider(id: Int!, input: UpdateProviderInput!): Provider!
@@ -241,6 +265,36 @@ type Order {
   wcOrderKey: String
 }
 
+type OrderProduct {
+  """Cliente que realizó la compra"""
+  client: User!
+  clientId: Int!
+  commission: Float!
+  createdAt: DateTime!
+  id: Int!
+
+  """Información del pago asociado"""
+  payment: PaymentProduct
+
+  """Producto físico adquirido"""
+  product: Product!
+  productId: Int!
+
+  """Vendedor del producto"""
+  provider: Provider!
+  providerId: Int!
+  quantity: Int!
+  status: OrderStatus!
+  total: Float!
+  unitPrice: Float!
+  updatedAt: DateTime!
+}
+
+type OrderProductWithPaymentResponse {
+  order: OrderProduct!
+  payment: PaymentProduct!
+}
+
 """Estado de una orden"""
 enum OrderStatus {
   CANCELLED
@@ -265,6 +319,18 @@ type Payment {
   updatedAt: DateTime!
 }
 
+type PaymentProduct {
+  amount: Float!
+  createdAt: DateTime!
+  id: Int!
+  orderProduct: OrderProduct!
+  orderProductId: Int!
+  provider: PaymentProvider!
+  status: PaymentStatus!
+  transactionId: String
+  updatedAt: DateTime!
+}
+
 enum PaymentProvider {
   MERCADOPAGO
   WEBPAY
@@ -280,19 +346,22 @@ type Product {
   categoryProduct: CategoryProduct
   categoryProductId: Int!
   createdAt: DateTime!
+  deliveryCondition: ConditionDelivery
   description: String
   id: Int!
-  imageUrl: String
+  images: [ProductImage]
   name: String!
   price: Float!
   provider: Provider
   providerId: Int!
   slug: String!
-
-  """Especificaciones del producto en formato JSON stringificado"""
-  specifications: String
   stock: Int!
-  updatedAt: DateTime!
+}
+
+type ProductImage {
+  id: Int!
+  productId: Int!
+  url: String!
 }
 
 type Provider {
@@ -367,11 +436,11 @@ type Query {
   categoriesProducts: [CategoryProduct!]!
   category(id: Int!): Category!
   categoryProduct(id: Int!): CategoryProduct!
-  categoryProductBySlug(slug: String!): CategoryProduct!
   getCertificateById(id: Int!): ProviderCertificate!
   getCertificates(sortOrder: String = "desc", verified: Boolean): [ProviderCertificate!]!
   getMyCertificates: [ProviderCertificate!]!
   getOrdersByProvider(providerId: Int!): [Order!]!
+  getOrdersProductByProvider(providerId: Int!): [OrderProduct!]!
   getServicesProvider(providerId: Int!): [Service!]!
   hobbies: [Hobby!]!
   hobbiesByProvider(providerId: Int!): [Hobby!]!
@@ -381,6 +450,7 @@ type Query {
   me: User!
   myProvider: Provider
   myServices: [Service!]!
+  ordersByProvider: [OrderProduct!]!
   product(id: Int!): Product!
   productBySlug(slug: String!): Product!
   products: [Product!]!
@@ -480,7 +550,6 @@ input UpdateCategoryProductInput {
   description: String
   id: Int!
   name: String
-  parentId: Int
   slug: String
 }
 
@@ -494,13 +563,13 @@ input UpdateCertificateInput {
 
 input UpdateProductInput {
   categoryProductId: Int
+  conditions: ConditionDeliveryInput
   description: String
   id: Int!
-  imageUrl: String
+  imageUrls: [String!]
   name: String
   price: Float
   slug: String
-  specifications: String
   stock: Int
 }
 

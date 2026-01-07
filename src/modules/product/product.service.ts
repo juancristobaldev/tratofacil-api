@@ -8,16 +8,45 @@ import {
   CreateProductInput,
   UpdateProductInput,
 } from 'src/graphql/entities/product.entity';
+import * as fs from 'fs';
+import * as path from 'path';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProductService {
+  private readonly uploadPath = path.join(process.cwd(), 'public', 'images');
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Crear un nuevo producto físico
-   * Incluye validación de slug único para evitar conflictos en la base de datos.
+   * Utilidad para eliminar archivos físicos del servidor
    */
-  async create(data: CreateProductInput) {
+  private deletePhysicalFile(url: string) {
+    try {
+      const fileName = path.basename(url);
+      const filePath = path.join(this.uploadPath, fileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (error) {
+      console.error(`Error al eliminar archivo físico: ${url}`, error);
+    }
+  }
+
+  /**
+   * Crear un nuevo producto físico con múltiples imágenes y condiciones de entrega
+   */
+  async create(data: CreateProductInput, userId: number) {
+    const provider = await this.prisma.provider.findFirst({
+      where: { userId },
+    });
+
+    if (!provider) {
+      throw new NotFoundException(
+        'Perfil de proveedor no encontrado para este usuario.',
+      );
+    }
+
     const existing = await this.prisma.product.findUnique({
       where: { slug: data.slug },
     });
@@ -28,21 +57,27 @@ export class ProductService {
       );
     }
 
+    // Extraemos imageUrls y conditions del input
+    const { imageUrls, conditions, ...productData } = data;
+
     return this.prisma.product.create({
       data: {
-        name: data.name,
-        slug: data.slug,
-        description: data.description,
-        specifications: data.specifications,
-        price: data.price,
-        stock: data.stock,
-        imageUrl: data.imageUrl,
-        providerId: data.providerId,
-        categoryProductId: data.categoryProductId,
+        ...productData,
+        providerId: provider.id,
+        // Creación anidada de imágenes
+        images: {
+          create: imageUrls?.map((url) => ({ url })) || [],
+        },
+        // ✅ Creación anidada de condiciones de entrega
+        deliveryCondition: {
+          create: { ...conditions },
+        },
       },
       include: {
         provider: true,
         categoryProduct: true,
+        images: true,
+        deliveryCondition: true, // Incluimos las condiciones en la respuesta
       },
     });
   }
@@ -50,11 +85,14 @@ export class ProductService {
   /**
    * Listar todos los productos del marketplace
    */
-  async findAll() {
+  async findAll(where?: Prisma.ProductWhereInput) {
     return this.prisma.product.findMany({
+      ...(where ? { where } : {}),
       include: {
         provider: true,
         categoryProduct: true,
+        images: true,
+        deliveryCondition: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -69,6 +107,8 @@ export class ProductService {
       include: {
         provider: true,
         categoryProduct: true,
+        images: true,
+        deliveryCondition: true,
       },
     });
 
@@ -80,7 +120,7 @@ export class ProductService {
   }
 
   /**
-   * Buscar un producto por su slug (ideal para la vista de detalle en el frontend)
+   * Buscar un producto por su slug
    */
   async findBySlug(slug: string) {
     const product = await this.prisma.product.findUnique({
@@ -88,6 +128,8 @@ export class ProductService {
       include: {
         provider: true,
         categoryProduct: true,
+        images: true,
+        deliveryCondition: true,
       },
     });
 
@@ -99,49 +141,75 @@ export class ProductService {
   }
 
   /**
-   * Listar productos de un proveedor específico
-   */
-  async findByProvider(providerId: number) {
-    return this.prisma.product.findMany({
-      where: { providerId },
-      include: { categoryProduct: true },
-    });
-  }
-
-  /**
-   * Listar productos por categoría
-   */
-  async findByCategory(categoryProductId: number) {
-    return this.prisma.product.findMany({
-      where: { categoryProductId },
-      include: { provider: true },
-    });
-  }
-
-  /**
-   * Actualizar un producto existente
+   * Actualizar un producto, sus fotos y sus condiciones de entrega
    */
   async update(data: UpdateProductInput) {
-    const { id, ...updateData } = data;
+    const { id, imageUrls, conditions, ...updateData } = data;
 
-    // Validar existencia
-    await this.findOne(id);
+    // 1. Obtener estado actual
+    const currentProduct = await this.prisma.product.findUnique({
+      where: { id },
+      include: { images: true, deliveryCondition: true },
+    });
+
+    if (!currentProduct) {
+      throw new NotFoundException(`Producto con ID ${id} no encontrado`);
+    }
+
+    // 2. Limpieza de fotos físicas
+    if (imageUrls) {
+      const urlsToRemove = currentProduct.images
+        .filter((img) => !imageUrls.includes(img.url))
+        .map((img) => img.url);
+
+      urlsToRemove.forEach((url) => this.deletePhysicalFile(url));
+    }
 
     return this.prisma.product.update({
       where: { id },
-      data: updateData,
+      data: {
+        ...updateData,
+        // Gestión de imágenes
+        images: imageUrls
+          ? {
+              deleteMany: {},
+              create: imageUrls.map((url) => ({ url })),
+            }
+          : undefined,
+        // ✅ Gestión de condiciones de entrega mediante upsert
+        deliveryCondition: conditions
+          ? {
+              upsert: {
+                create: { ...conditions },
+                update: { ...conditions },
+              },
+            }
+          : undefined,
+      },
       include: {
         provider: true,
         categoryProduct: true,
+        images: true,
+        deliveryCondition: true,
       },
     });
   }
 
   /**
-   * Eliminar un producto
+   * Eliminar un producto y todos sus recursos asociados
    */
   async remove(id: number) {
-    await this.findOne(id);
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: { images: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Producto con ID ${id} no encontrado`);
+    }
+
+    // Limpiar archivos físicos
+    product.images.forEach((img) => this.deletePhysicalFile(img.url));
 
     return this.prisma.product.delete({
       where: { id },
@@ -149,9 +217,7 @@ export class ProductService {
   }
 
   /**
-   * Actualizar el stock de un producto (útil para el flujo de órdenes)
-   * @param id ID del producto
-   * @param quantity Cantidad a sumar (positiva) o restar (negativa)
+   * Actualizar stock
    */
   async updateStock(id: number, quantity: number) {
     const product = await this.findOne(id);

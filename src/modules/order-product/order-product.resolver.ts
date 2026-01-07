@@ -31,6 +31,7 @@ export class OrderProductResolver {
     @Context() context: any,
   ) {
     const user = context?.req?.user;
+    // Se utiliza user.id directamente desde el decorador CurrentUser
     return this.orderProductService.createOrderProductWithPayment(
       user.id,
       input,
@@ -64,13 +65,13 @@ export class OrderProductResolver {
    * Solo accesible para usuarios con rol PROVIDER.
    */
   @Query(() => [OrderProduct], { name: 'ordersByProvider' })
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROVIDER)
   async getOrdersByProvider(@Context() context: any) {
-    // El userId del CurrentUser se usa para buscar su perfil de proveedor
-    // Asumiendo que el service o el perfil ya está vinculado
-    // Nota: El service pide providerId. Si el user es provider, pasamos su ID de proveedor.
-    const userId = context?.req?.user?.id;
-    return this.orderProductService.getOrdersByProviderId(userId);
+    // Se extrae el provider.id del usuario autenticado para buscar sus órdenes.
+    // El servicio espera el ID del proveedor, no del usuario base.
+    const user = context?.req?.user?.id;
+    return this.orderProductService.getOrdersByProviderId(user);
   }
 
   /**
@@ -78,13 +79,18 @@ export class OrderProductResolver {
    * Solo el proveedor dueño del producto puede realizar esta acción.
    */
   @Mutation(() => OrderProduct, { name: 'updateOrderProductStatus' })
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROVIDER)
   async updateOrderStatus(
     @Args('orderId', { type: () => Int }) orderId: number,
     @Args('status', { type: () => OrderStatus }) status: OrderStatus,
     @Context() context: any,
   ) {
-    const userId = context.req.user;
-    return this.orderProductService.updateOrderStatus(orderId, status, userId);
+    const user = context?.req?.user;
+
+    // Se envía el providerId para q
+    // ue el servicio valide que la orden le pertenece.
+
+    return this.orderProductService.updateOrderStatus(orderId, status, user.id);
   }
 }

@@ -8,14 +8,16 @@ import {
   WebpayResponse,
 } from 'src/graphql/entities/order.entity';
 import { OrderStatus } from 'src/graphql/enums/order-status.enum';
+import {
+  CreateOrderProductInput,
+  OrderProduct,
+} from 'src/graphql/entities/order-product.entity';
 
 @Resolver()
 export class PaymentsResolver {
   constructor(private readonly paymentService: PaymentService) {}
 
-  /**
-   * Crear Orden y Pago (Paso 1)
-   */
+  // SERVICES
 
   @Query(() => [Order])
   getOrdersByProvider(
@@ -68,5 +70,78 @@ export class PaymentsResolver {
   @Mutation(() => Order)
   async confirmPayment(@Args('token') token: string) {
     return this.paymentService.confirmWebpayTransaction(token);
+  }
+
+  // PRODUCTS
+
+  @Query(() => [OrderProduct], { name: 'getOrdersProductByProvider' })
+  @UseGuards(JwtAuthGuard)
+  getOrdersProductByProvider(
+    @Args('providerId', { type: () => Int }) providerId: number,
+  ) {
+    // Nota: Deberías tener este método en el service para filtrar OrderProduct
+    return this.paymentService.getOrdersProductsByProviderId(providerId);
+  }
+
+  // =========================
+  // MUTATIONS
+  // =========================
+
+  /**
+   * Crear Orden de Producto y Reserva de Stock
+   */
+  @Mutation(() => OrderProduct)
+  @UseGuards(JwtAuthGuard)
+  async createOrderProduct(
+    @Args('input') input: CreateOrderProductInput,
+    @Context() context: any,
+  ) {
+    const userId = Number(context.req.user.id);
+    const { order } = await this.paymentService.createOrderProductWithPayment(
+      userId,
+      input,
+    );
+    return order;
+  }
+
+  /**
+   * Iniciar Webpay para Producto (Paso 2)
+   */
+  @Mutation(() => WebpayResponse)
+  @UseGuards(JwtAuthGuard)
+  async initiateProductPayment(
+    @Args('orderProductId', { type: () => Int }) orderProductId: number,
+    @Args('returnUrl') returnUrl: string,
+  ) {
+    return this.paymentService.createWebpayProductTransaction(
+      orderProductId,
+      returnUrl,
+    );
+  }
+
+  /**
+   * Confirmar Webpay para Producto (Paso 3)
+   */
+  @Mutation(() => OrderProduct)
+  async confirmProductPayment(@Args('token') token: string) {
+    return this.paymentService.confirmWebpayProductTransaction(token);
+  }
+
+  /**
+   * Actualizar Estado de Entrega/Orden de Producto
+   */
+  @Mutation(() => OrderProduct)
+  @UseGuards(JwtAuthGuard)
+  updateOrderProductStatus(
+    @Args('orderProductId', { type: () => Int }) orderProductId: number,
+    @Args('status', { type: () => OrderStatus }) status: OrderStatus,
+    @Args('providerId', { type: () => Int }) providerId: number,
+  ) {
+    // Lógica para cambiar de PENDING a SHIPPED o COMPLETED
+    return this.paymentService.updateOrderProductStatus(
+      orderProductId,
+      status,
+      providerId,
+    );
   }
 }

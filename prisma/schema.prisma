@@ -187,25 +187,38 @@ model CategoryProduct {
 }
 
 model Product {
-  id                Int             @id @default(autoincrement())
+  id                Int               @id @default(autoincrement())
   name              String
-  slug              String          @unique
+  slug              String            @unique
   description       String?
-  specifications    Json?           // Especificaciones del producto
-  price             Float           // Precio base del proveedor
-  stock             Int             @default(0)
-  imageUrl          String?
+  specifications    Json?             // Especificaciones del producto (MySQL Json)
+  price             Float             // Precio base del proveedor
+  stock             Int               @default(0)
   
+  // ✅ RELACIONES ACTUALIZADAS
+  images            ProductImage[]
+  deliveryCondition ConditionDelivery? // Condiciones de entrega asociadas al producto
+
   providerId        Int
-  provider          Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider          Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
   
   categoryProductId Int
-  categoryProduct   CategoryProduct @relation(fields: [categoryProductId], references: [id], onDelete: Cascade)
+  categoryProduct   CategoryProduct   @relation(fields: [categoryProductId], references: [id], onDelete: Cascade)
 
   orders            OrderProduct[]
 
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model ProductImage {
+  id        Int      @id @default(autoincrement())
+  url       String   // URL o Key de la imagen
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
 }
 
 // =========================================================
@@ -283,27 +296,41 @@ model Order {
 }
 
 model OrderProduct {
-  id Int @id @default(autoincrement())
+  id          Int          @id @default(autoincrement())
+  clientId    Int
+  client      User         @relation("ClientProductOrders", fields: [clientId], references: [id], onDelete: Cascade)
+  providerId  Int
+  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  productId   Int
+  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity    Int          @default(1)
+  unitPrice   Float
+  commission  Float
+  total       Float
+  status      OrderStatus  @default(PENDING)
 
-  clientId Int
-  client   User @relation("ClientProductOrders", fields: [clientId], references: [id], onDelete: Cascade)
-  
-  providerId Int
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
-  productId Int
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  quantity    Int     @default(1)
-  unitPrice   Float   // Precio histórico del producto
-  commission  Float   // Comisión calculada según rangos
-  total       Float   // (unitPrice * quantity) + commission
-  status      OrderStatus @default(PENDING)
+  payment     PaymentProduct?
 
-  payment PaymentProduct?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model ConditionDelivery {
+  id                    Int      @id @default(autoincrement())
+  productId             Int      @unique
+  product               Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  deliveryType          String   // Ej: "Despacho a domicilio", "Retiro en tienda"
+  shippingPayer         String   // Ej: "Vendedor", "Comprador"
+  maxDispatchDays       Int      // Plazo máximo de despacho (días)
+  confirmationDeadline  DateTime // Fecha límite de confirmación (ej: antes de las 18:00)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([productId])
 }
 
 model Payment {

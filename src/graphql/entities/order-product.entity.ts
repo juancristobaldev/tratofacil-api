@@ -1,17 +1,22 @@
 import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
-import { IsInt, Min, IsOptional, IsNumber, IsNotEmpty } from 'class-validator';
+import { IsInt, Min, IsNotEmpty } from 'class-validator';
 import { OrderStatus } from '../enums/order-status.enum';
-import { User } from './user.entity';
-import { Product } from './product.entity';
-import { Payment } from './payment.entity';
-import { PaymentProvider } from '@prisma/client';
+import { PaymentProvider } from '../enums/payment-provider.enum';
 import { PaymentStatus } from '../enums/payment-status.enum';
+import { User } from './user.entity';
+import { Provider } from './provider.entity';
+import { Product } from './product.entity'; // Importante para la coherencia
+import { PaymentProduct } from './payment.entity';
 
 /**
- * ENTIDAD ORDER PRODUCT (Output Object Type)
- * Representa la compra de un producto físico en el Marketplace.
+ * ENTIDAD PAGO DE PRODUCTO
+ * Alineada con el modelo 'PaymentProduct' de Prisma.
  */
 
+/**
+ * ENTIDAD ORDEN DE PRODUCTO
+ * Alineada con el modelo 'OrderProduct' de Prisma.
+ */
 @ObjectType()
 export class OrderProduct {
   @Field(() => Int)
@@ -35,29 +40,27 @@ export class OrderProduct {
   @Field(() => Float)
   total: number;
 
-  @Field(() => Float, {
-    description: 'Comisión calculada según el rango de precio',
-  })
+  @Field(() => Float)
   commission: number;
-
-  @Field(() => Float, { description: 'Monto líquido para el proveedor' })
-  netAmount: number;
 
   @Field(() => OrderStatus)
   status: OrderStatus;
 
-  // RELACIONES
+  // RELACIONES (Uso de funciones de flecha para evitar fallos de circularidad)
   @Field(() => User, { description: 'Cliente que realizó la compra' })
-  client?: User;
+  client: User;
 
-  @Field(() => Product, { description: 'Producto adquirido' })
-  product?: Product;
+  @Field(() => Provider, { description: 'Vendedor del producto' })
+  provider: Provider;
 
-  @Field(() => Payment, {
+  @Field(() => Product, { description: 'Producto físico adquirido' })
+  product: Product;
+
+  @Field(() => PaymentProduct, {
     nullable: true,
     description: 'Información del pago asociado',
   })
-  payment?: Payment | null;
+  payment?: PaymentProduct | null;
 
   @Field()
   createdAt: Date;
@@ -67,8 +70,7 @@ export class OrderProduct {
 }
 
 /**
- * INPUT PARA CREAR UNA ORDEN DE PRODUCTO
- * Utilizado por el método createOrderProductWithPayment del servicio.
+ * INPUT PARA CREAR UNA ORDEN
  */
 @InputType()
 export class CreateOrderProductInput {
@@ -79,54 +81,13 @@ export class CreateOrderProductInput {
 
   @Field(() => Int)
   @IsInt()
-  @Min(1, { message: 'La cantidad mínima es 1 unidad' })
+  @Min(1)
   quantity: number;
-
-  // El total y las comisiones se calculan en el servidor para evitar manipulaciones
 }
 
 /**
- * INPUT PARA ACTUALIZAR ESTADO DE ORDEN DE PRODUCTO
+ * RESPUESTA PARA MUTACIONES DE COMPRA
  */
-@InputType()
-export class UpdateOrderProductInput {
-  @Field(() => Int)
-  @IsInt()
-  @IsNotEmpty()
-  id: number;
-
-  @Field(() => OrderStatus)
-  @IsNotEmpty()
-  status: OrderStatus;
-}
-
-@ObjectType()
-export class PaymentProduct {
-  @Field(() => Int)
-  id: number;
-
-  @Field(() => Int)
-  orderProductId: number;
-
-  @Field(() => Float)
-  amount: number;
-
-  @Field(() => PaymentProvider)
-  provider: PaymentProvider;
-
-  @Field(() => PaymentStatus)
-  status: PaymentStatus;
-
-  @Field(() => String, { nullable: true })
-  transactionId?: string | null;
-
-  @Field()
-  createdAt: Date;
-
-  @Field()
-  updatedAt: Date;
-}
-
 @ObjectType()
 export class OrderProductWithPaymentResponse {
   @Field(() => OrderProduct)

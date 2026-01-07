@@ -145,6 +145,7 @@ export class AppController {
       throw new BadRequestException('Archivo requerido');
     }
 
+    console.log(file);
     const ext = '.jpg'; // normalizamos
     const key = `${randomUUID()}${ext}`;
 

@@ -43,7 +43,13 @@ export class CategoriesProductService {
   async findAll() {
     return this.prisma.categoryProduct.findMany({
       include: {
-        products: true,
+        products: {
+          include: {
+            provider: true,
+            images: true,
+            deliveryCondition: true,
+          },
+        },
       },
       orderBy: { name: 'asc' },
     });

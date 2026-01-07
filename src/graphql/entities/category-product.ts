@@ -6,11 +6,11 @@ import {
   IsInt,
   MinLength,
 } from 'class-validator';
+import { Product } from './product.entity'; // Asegúrate de que este archivo exista
 
 /**
  * ENTIDAD CATEGORY PRODUCT (Output Object Type)
- * Representa la estructura de una categoría de producto en el Marketplace.
- * Alineada con el modelo 'CategoryProduct' de Prisma.
+ * Alineada estrictamente con el modelo 'CategoryProduct' de tu Prisma Schema.
  */
 @ObjectType()
 export class CategoryProduct {
@@ -26,31 +26,23 @@ export class CategoryProduct {
   @Field(() => String, { nullable: true })
   description?: string | null;
 
-  @Field(() => Int, { nullable: true })
-  parentId?: number | null;
-
-  // RELACIONES JERÁRQUICAS
-  @Field(() => [CategoryProduct], {
+  // RELACIÓN CON PRODUCTOS (Definida en el Schema de Prisma)
+  @Field(() => [Product], {
     nullable: 'itemsAndList',
-    description: 'Lista de subcategorías pertenecientes a esta categoría',
+    description: 'Lista de productos que pertenecen a esta categoría',
   })
-  children?: CategoryProduct[];
+  products?: Product[];
 
-  @Field(() => CategoryProduct, {
-    nullable: true,
-    description: 'Categoría de nivel superior',
-  })
-  parent?: CategoryProduct | null;
+  @Field()
+  createdAt: Date;
 
-  // RELACIÓN CON PRODUCTOS
-  // Nota: Se habilitará cuando se defina la entidad Product
-  // @Field(() => [Product], { nullable: 'itemsAndList' })
-  // products?: any[];
+  @Field()
+  updatedAt: Date;
 }
 
 /**
  * INPUT PARA CREAR CATEGORÍA DE PRODUCTO
- * Alineado con el método create() del CategoryProductService.
+ * Solo incluye campos presentes en la tabla de la BD.
  */
 @InputType()
 export class CreateCategoryProductInput {
@@ -69,16 +61,10 @@ export class CreateCategoryProductInput {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @Field(() => Int, { nullable: true })
-  @IsOptional()
-  @IsInt()
-  parentId?: number;
 }
 
 /**
  * INPUT PARA ACTUALIZAR CATEGORÍA DE PRODUCTO
- * Alineado con el método update() del CategoryProductService.
  */
 @InputType()
 export class UpdateCategoryProductInput {
@@ -102,9 +88,4 @@ export class UpdateCategoryProductInput {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @Field(() => Int, { nullable: true })
-  @IsOptional()
-  @IsInt()
-  parentId?: number;
 }

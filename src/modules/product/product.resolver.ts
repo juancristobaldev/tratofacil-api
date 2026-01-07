@@ -1,10 +1,12 @@
-import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Int, Context } from '@nestjs/graphql';
+import { UseGuards } from '@nestjs/common';
 import {
   CreateProductInput,
   Product,
   UpdateProductInput,
 } from 'src/graphql/entities/product.entity';
 import { ProductService } from './product.service';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Resolver(() => Product)
 export class ProductResolver {
@@ -15,7 +17,7 @@ export class ProductResolver {
   // =========================================================
 
   /**
-   * Obtiene la lista completa de productos físicos.
+   * Obtiene la lista completa de productos físicos con sus imágenes y condiciones.
    */
   @Query(() => [Product], { name: 'products' })
   async findAll() {
@@ -31,7 +33,7 @@ export class ProductResolver {
   }
 
   /**
-   * Busca un producto por su slug (ideal para SEO y URLs amigables).
+   * Busca un producto por su slug (ideal para SEO).
    */
   @Query(() => Product, { name: 'productBySlug' })
   async findBySlug(@Args('slug', { type: () => String }) slug: string) {
@@ -39,23 +41,25 @@ export class ProductResolver {
   }
 
   /**
-   * Filtra los productos pertenecientes a un proveedor específico.
+   * Filtra los productos de un proveedor específico.
    */
   @Query(() => [Product], { name: 'productsByProvider' })
   async findByProvider(
     @Args('providerId', { type: () => Int }) providerId: number,
   ) {
-    return this.productsService.findByProvider(providerId);
+    // Usamos el objeto de filtro de Prisma
+    return this.productsService.findAll({ providerId });
   }
 
   /**
-   * Filtra los productos por su categoría de producto.
+   * Filtra los productos por su categoría.
    */
   @Query(() => [Product], { name: 'productsByCategory' })
   async findByCategory(
     @Args('categoryProductId', { type: () => Int }) categoryProductId: number,
   ) {
-    return this.productsService.findByCategory(categoryProductId);
+    // ✅ CORRECCIÓN: Se cambió findOne por findAll con filtro para devolver un array
+    return this.productsService.findAll({ categoryProductId });
   }
 
   // =========================================================
@@ -63,42 +67,46 @@ export class ProductResolver {
   // =========================================================
 
   /**
-   * Crea un nuevo producto en el catálogo.
+   * Crea un nuevo producto, sus imágenes y sus condiciones de despacho.
    */
   @Mutation(() => Product)
+  @UseGuards(JwtAuthGuard)
   async createProduct(
-    @Args('createProductInput') createProductInput: CreateProductInput,
+    @Args('input') input: CreateProductInput,
+    @Context() context: any,
   ) {
-    return this.productsService.create(createProductInput);
+    const user = context.req.user;
+    return this.productsService.create(input, user.id);
   }
 
   /**
-   * Actualiza la información de un producto existente.
+   * Actualiza la información del producto, incluyendo fotos y condiciones de entrega.
    */
   @Mutation(() => Product)
-  async updateProduct(
-    @Args('updateProductInput') updateProductInput: UpdateProductInput,
-  ) {
-    return this.productsService.update(updateProductInput);
+  @UseGuards(JwtAuthGuard)
+  async updateProduct(@Args('input') input: UpdateProductInput) {
+    return this.productsService.update(input);
   }
 
   /**
-   * Elimina un producto del sistema.
+   * Elimina un producto y sus archivos físicos asociados.
    */
   @Mutation(() => Product)
+  @UseGuards(JwtAuthGuard)
   async removeProduct(@Args('id', { type: () => Int }) id: number) {
     return this.productsService.remove(id);
   }
 
   /**
-   * Ajusta el stock de un producto (suma o resta cantidades).
+   * Ajusta el stock de un producto.
    */
   @Mutation(() => Product)
+  @UseGuards(JwtAuthGuard)
   async updateProductStock(
     @Args('id', { type: () => Int }) id: number,
     @Args('quantity', {
       type: () => Int,
-      description: 'Cantidad a añadir (positivo) o quitar (negativo)',
+      description: 'Cantidad a añadir (+) o quitar (-)',
     })
     quantity: number,
   ) {
