@@ -45,6 +45,10 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+  @Get('hello')
+  helloword(): string {
+    return 'puto';
+  }
   @Get('files/:key')
   getFile(@Param('key') key: string, @Res() res: Response) {
     this.validateKey(key);

@@ -20,7 +20,7 @@ async function bootstrap() {
 
   // Habilitar CORS solo para localhost:3000
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: ['http://localhost:3000', 'https://tratofacil-ud4h.vercel.app'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
