@@ -176,7 +176,13 @@ export class PaymentService {
     // Buscamos el pago mediante el token de transacción
     const payment = await this.prisma.paymentProduct.findFirst({
       where: { transactionId: token },
-      include: { orderProduct: true },
+      include: {
+        orderProduct: {
+          include: {
+            product: true,
+          },
+        },
+      },
     });
 
     if (!payment)
@@ -196,11 +202,17 @@ export class PaymentService {
         : PaymentStatus.FAILED;
 
       // Si el pago es exitoso, marcamos la orden como SUCCESS (o PROCESSING según tu flujo)
-      const newOrderStatus = success ? OrderStatus.SUCCESS : OrderStatus.FAILED;
+      const newOrderStatus = success ? OrderStatus.PENDING : OrderStatus.FAILED;
 
       // Ejecutamos la actualización en una transacción de base de datos
       return await this.prisma.$transaction(async (tx) => {
         // 1. Actualizar el estado del pago
+
+        await tx.product.update({
+          where: { id: payment.orderProduct.productId },
+          data: { stock: payment.orderProduct.product.stock - 1 },
+        });
+
         await tx.paymentProduct.update({
           where: { id: payment.id },
           data: { status: newPaymentStatus },

@@ -96,16 +96,18 @@ export class OrderProductService {
       });
 
       // 2. Reservar stock: Descontar la cantidad de la orden
+      /*
       await tx.product.update({
         where: { id: product.id },
         data: { stock: { decrement: input.quantity } },
       });
+     */
 
       // 3. Crear el registro de pago inicial
       const payment = await tx.paymentProduct.create({
         data: {
           orderProductId: order.id,
-          amount: totalAmount,
+          amount: totalAmount + commission,
           provider: PaymentProvider.WEBPAY,
           status: PaymentStatus.INITIATED,
         },
@@ -126,6 +128,8 @@ export class OrderProductService {
       where: { id: orderId },
       include: { payment: true },
     });
+
+    console.log(order);
 
     if (!order) throw new NotFoundException('Orden no encontrada');
     if (!order.payment)

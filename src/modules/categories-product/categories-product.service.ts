@@ -8,6 +8,7 @@ import {
   CreateCategoryProductInput,
   UpdateCategoryProductInput,
 } from 'src/graphql/entities/category-product';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class CategoriesProductService {
@@ -40,8 +41,9 @@ export class CategoriesProductService {
   /**
    * Obtiene todas las categorías de productos, incluyendo sus subcategorías (children).
    */
-  async findAll() {
+  async findAll(where?: Prisma.CategoryProductWhereInput) {
     return this.prisma.categoryProduct.findMany({
+      ...(where ? { where } : {}),
       include: {
         products: {
           include: {

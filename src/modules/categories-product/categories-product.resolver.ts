@@ -10,11 +10,13 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { Role } from '../../graphql/enums/role.enum';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Resolver(() => CategoryProduct)
 export class CategoriesProductResolver {
   constructor(
     private readonly categoriesProductService: CategoriesProductService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Mutation(() => CategoryProduct)
@@ -27,7 +29,28 @@ export class CategoriesProductResolver {
 
   @Query(() => [CategoryProduct], { name: 'categoriesProducts' })
   async findAll() {
-    return this.categoriesProductService.findAll();
+    const products = await this.prisma.product.findMany();
+    console.log(products);
+    const categories = await this.categoriesProductService.findAll({
+      products: {
+        some: {
+          stock: {
+            not: 0,
+          },
+        },
+      },
+    });
+
+    const categoriesFilter = categories.map((cat) => {
+      const productsCat = cat.products.filter((product) => product.stock !== 0);
+
+      return {
+        ...cat,
+        products: productsCat,
+      };
+    });
+
+    return categoriesFilter;
   }
 
   @Query(() => CategoryProduct, { name: 'categoryProduct' })
