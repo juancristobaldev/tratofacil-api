@@ -157,6 +157,7 @@ export class AdminResolver {
     @Args('description', { nullable: true }) description?: string,
     @Args('parentId', { type: () => Int, nullable: true }) parentId?: number,
   ) {
+    console.log(imageUrl);
     return this.adminService.createCategory({
       name,
       slug,

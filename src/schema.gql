@@ -42,9 +42,29 @@ type Category {
   slug: String!
 }
 
+type CategoryProduct {
+  """Lista de subcategorías pertenecientes a esta categoría"""
+  children: [CategoryProduct]
+  description: String
+  id: Int!
+  name: String!
+
+  """Categoría de nivel superior"""
+  parent: CategoryProduct
+  parentId: Int
+  slug: String!
+}
+
 input CreateCategoryInput {
   description: String
   imageUrl: String
+  name: String!
+  parentId: Int
+  slug: String!
+}
+
+input CreateCategoryProductInput {
+  description: String
   name: String!
   parentId: Int
   slug: String!
@@ -67,6 +87,20 @@ input CreateOrderInput {
   total: Float!
   wcOrderId: Int
   wcOrderKey: String
+}
+
+input CreateProductInput {
+  categoryProductId: Int!
+  description: String
+  imageUrl: String
+  name: String!
+  price: Float!
+  providerId: Int!
+  slug: String!
+
+  """Debe enviarse como un JSON string (ej: "{"color": "rojo"}")"""
+  specifications: String
+  stock: Int! = 0
 }
 
 input CreateProviderInput {
@@ -146,9 +180,11 @@ type Mutation {
   confirmEmailAndCreateUser(code: String!, credentials: CredentialsInput!, identity: IdentityInput!): AuthType!
   confirmPayment(token: String!): Order!
   createCategory(input: CreateCategoryInput!): Category!
+  createCategoryProduct(createCategoryProductInput: CreateCategoryProductInput!): CategoryProduct!
   createCertificate(input: CreateCertificateInput!): ProviderCertificate!
   createHobby(createHobbyInput: CreateHobbyInput!): Hobby!
   createOrder(input: CreateOrderInput!): Order!
+  createProduct(createProductInput: CreateProductInput!): Product!
   createReview(input: CreateReviewInput!): ProviderReview!
   createService(input: CreateServiceInput!): ServiceProvider!
   deleteCategory(id: Int!): Category!
@@ -167,10 +203,20 @@ type Mutation {
   register(input: RegisterUserInput!): AuthType!
   registerProvider(input: CreateProviderInput!): Provider!
   rejectCertificate(id: Int!): ProviderCertificate!
+  removeCategoryProduct(id: Int!): CategoryProduct!
+  removeProduct(id: Int!): Product!
   updateBank(input: BankAccountInput!, providerId: Int!): BankAccount!
   updateCategory(id: Int!, input: UpdateCategoryInput!): Category!
+  updateCategoryProduct(updateCategoryProductInput: UpdateCategoryProductInput!): CategoryProduct!
   updateCertificate(input: UpdateCertificateInput!): ProviderCertificate!
   updateOrderStatus(orderId: Int!, providerId: Int!, status: OrderStatus!): Order!
+  updateProduct(updateProductInput: UpdateProductInput!): Product!
+  updateProductStock(
+    id: Int!
+
+    """Cantidad a añadir (positivo) o quitar (negativo)"""
+    quantity: Int!
+  ): Product!
   updateProvider(id: Int!, input: UpdateProviderInput!): Provider!
   updateService(id: Int!, input: UpdateServiceInput!): ServiceProvider!
   updateUser(input: UpdateUserInput!): User!
@@ -228,6 +274,25 @@ enum PaymentStatus {
   CONFIRMED
   FAILED
   INITIATED
+}
+
+type Product {
+  categoryProduct: CategoryProduct
+  categoryProductId: Int!
+  createdAt: DateTime!
+  description: String
+  id: Int!
+  imageUrl: String
+  name: String!
+  price: Float!
+  provider: Provider
+  providerId: Int!
+  slug: String!
+
+  """Especificaciones del producto en formato JSON stringificado"""
+  specifications: String
+  stock: Int!
+  updatedAt: DateTime!
 }
 
 type Provider {
@@ -299,7 +364,10 @@ type Query {
   """Obtener todos los usuarios (Clientes y Admins)"""
   adminUsers: [User!]!
   categories: [Category!]!
+  categoriesProducts: [CategoryProduct!]!
   category(id: Int!): Category!
+  categoryProduct(id: Int!): CategoryProduct!
+  categoryProductBySlug(slug: String!): CategoryProduct!
   getCertificateById(id: Int!): ProviderCertificate!
   getCertificates(sortOrder: String = "desc", verified: Boolean): [ProviderCertificate!]!
   getMyCertificates: [ProviderCertificate!]!
@@ -309,9 +377,15 @@ type Query {
   hobbiesByProvider(providerId: Int!): [Hobby!]!
   hobby(id: Int!): Hobby!
   mainCategories: [Category!]!
+  mainCategoryProducts: [CategoryProduct!]!
   me: User!
   myProvider: Provider
   myServices: [Service!]!
+  product(id: Int!): Product!
+  productBySlug(slug: String!): Product!
+  products: [Product!]!
+  productsByCategory(categoryProductId: Int!): [Product!]!
+  productsByProvider(providerId: Int!): [Product!]!
   provider(id: Int!): Provider
   providers: [Provider!]!
   publicProfile(userId: Int!): User
@@ -402,12 +476,32 @@ input UpdateCategoryInput {
   slug: String
 }
 
+input UpdateCategoryProductInput {
+  description: String
+  id: Int!
+  name: String
+  parentId: Int
+  slug: String
+}
+
 input UpdateCertificateInput {
   fileUrl: String
   id: Int!
   institution: String
   title: String
   year: Int
+}
+
+input UpdateProductInput {
+  categoryProductId: Int
+  description: String
+  id: Int!
+  imageUrl: String
+  name: String
+  price: Float
+  slug: String
+  specifications: String
+  stock: Int
 }
 
 input UpdateProviderInput {

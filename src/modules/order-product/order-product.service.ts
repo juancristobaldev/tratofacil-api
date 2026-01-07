@@ -90,7 +90,7 @@ export class OrderProductService {
           unitPrice: product.price,
           total: totalAmount,
           commission: commission,
-          netAmount: netAmount, // Dinero líquido para el proveedor
+
           status: OrderStatus.PENDING,
         },
       });
@@ -102,7 +102,7 @@ export class OrderProductService {
       });
 
       // 3. Crear el registro de pago inicial
-      const payment = await tx.payment.create({
+      const payment = await tx.paymentProduct.create({
         data: {
           orderProductId: order.id,
           amount: totalAmount,
@@ -144,7 +144,7 @@ export class OrderProductService {
         returnUrl,
       );
 
-      await this.prisma.payment.update({
+      await this.prisma.paymentProduct.update({
         where: { id: order.payment.id },
         data: { transactionId: response.token },
       });
@@ -164,7 +164,7 @@ export class OrderProductService {
   // 4️⃣ Confirmar Pago Webpay
   // =====================================================
   async confirmWebpayTransaction(token: string) {
-    const payment = await this.prisma.payment.findFirst({
+    const payment = await this.prisma.paymentProduct.findFirst({
       where: { transactionId: token },
       include: { orderProduct: true },
     });
