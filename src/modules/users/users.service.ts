@@ -51,6 +51,11 @@ export class UserService {
             certificates: true,
           },
         },
+        productOrders: {
+          include: {
+            product: true,
+          },
+        },
         orders: {
           include: {
             serviceProvider: {

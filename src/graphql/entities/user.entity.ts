@@ -19,6 +19,7 @@ import { Role } from '../enums/role.enum';
 import { Provider } from './provider.entity';
 import { Order } from './order.entity';
 import { ProviderReview } from './provider.entity';
+import { OrderProduct } from './order-product.entity';
 
 /**
  * ENTIDAD USER (Output Object Type)
@@ -66,6 +67,8 @@ export class User {
 
   @Field(() => [ProviderReview], { nullable: 'itemsAndList' })
   reviews?: ProviderReview[];
+  @Field(() => [OrderProduct], { nullable: true })
+  productOrders?: OrderProduct[];
 }
 /**
  * INPUT PARA REGISTRO DE USUARIO (Básico)

@@ -31,15 +31,7 @@ export class CategoriesProductResolver {
   async findAll() {
     const products = await this.prisma.product.findMany();
     console.log(products);
-    const categories = await this.categoriesProductService.findAll({
-      products: {
-        some: {
-          stock: {
-            not: 0,
-          },
-        },
-      },
-    });
+    const categories = await this.categoriesProductService.findAll({});
 
     const categoriesFilter = categories.map((cat) => {
       const productsCat = cat.products.filter((product) => product.stock !== 0);

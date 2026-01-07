@@ -621,6 +621,7 @@ type User {
   id: Int!
   nicename: String!
   orders: [Order]
+  productOrders: [OrderProduct!]
   provider: Provider
   registered: DateTime!
   reviews: [ProviderReview]
