@@ -221,10 +221,12 @@ export class OrderProductService {
   // =====================================================
   // 5️⃣ Listar Órdenes por Proveedor
   // =====================================================
-  async getOrdersByProviderId(providerId: number) {
+  async getOrdersByProviderId(userId: number) {
     return this.prisma.orderProduct.findMany({
       where: {
-        providerId: providerId,
+        provider: {
+          userId,
+        },
         payment: { status: PaymentStatus.CONFIRMED },
       },
       include: {
@@ -242,13 +244,20 @@ export class OrderProductService {
   async updateOrderStatus(
     orderId: number,
     status: OrderStatus,
-    providerId: number,
+    userId: number,
   ) {
     const order = await this.prisma.orderProduct.findUnique({
       where: { id: orderId },
     });
 
-    if (!order || order.providerId !== providerId) {
+    const provider = await this.prisma.provider.findFirst({
+      where: {
+        userId,
+      },
+    });
+
+    if (!provider) return;
+    if (!order || order.providerId !== provider.id) {
       throw new ForbiddenException(
         'No tienes permiso para actualizar esta orden',
       );

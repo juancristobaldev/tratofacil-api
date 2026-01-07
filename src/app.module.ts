@@ -22,6 +22,8 @@ import { HobbysModule } from './modules/hobbys/hobbys.module';
 import { CategoriesProductModule } from './modules/categories-product/categories-product.module';
 import { ProductModule } from './modules/product/product.module';
 import { OrderProductModule } from './modules/order-product/order-product.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
+import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 
 @Module({
   imports: [
@@ -52,6 +54,7 @@ import { OrderProductModule } from './modules/order-product/order-product.module
     CategoriesProductModule,
     ProductModule,
     OrderProductModule,
+    MarketplaceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

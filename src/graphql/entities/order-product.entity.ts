@@ -4,11 +4,14 @@ import { OrderStatus } from '../enums/order-status.enum';
 import { User } from './user.entity';
 import { Product } from './product.entity';
 import { Payment } from './payment.entity';
+import { PaymentProvider } from '@prisma/client';
+import { PaymentStatus } from '../enums/payment-status.enum';
 
 /**
  * ENTIDAD ORDER PRODUCT (Output Object Type)
  * Representa la compra de un producto físico en el Marketplace.
  */
+
 @ObjectType()
 export class OrderProduct {
   @Field(() => Int)
@@ -95,4 +98,40 @@ export class UpdateOrderProductInput {
   @Field(() => OrderStatus)
   @IsNotEmpty()
   status: OrderStatus;
+}
+
+@ObjectType()
+export class PaymentProduct {
+  @Field(() => Int)
+  id: number;
+
+  @Field(() => Int)
+  orderProductId: number;
+
+  @Field(() => Float)
+  amount: number;
+
+  @Field(() => PaymentProvider)
+  provider: PaymentProvider;
+
+  @Field(() => PaymentStatus)
+  status: PaymentStatus;
+
+  @Field(() => String, { nullable: true })
+  transactionId?: string | null;
+
+  @Field()
+  createdAt: Date;
+
+  @Field()
+  updatedAt: Date;
+}
+
+@ObjectType()
+export class OrderProductWithPaymentResponse {
+  @Field(() => OrderProduct)
+  order: OrderProduct;
+
+  @Field(() => PaymentProduct)
+  payment: PaymentProduct;
 }
