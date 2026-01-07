@@ -310,7 +310,9 @@ model OrderProduct {
   status      OrderStatus  @default(PENDING)
 
 
-
+// NEW FIELDS
+  shippingCompany String?  
+  trackingCode    String? 
   payment     PaymentProduct?
 
   createdAt   DateTime     @default(now())

@@ -232,6 +232,7 @@ type Mutation {
   updateCategory(id: Int!, input: UpdateCategoryInput!): Category!
   updateCategoryProduct(input: UpdateCategoryProductInput!): CategoryProduct!
   updateCertificate(input: UpdateCertificateInput!): ProviderCertificate!
+  updateOrderProductShipping(input: UpdateShippingInput!): OrderProduct!
   updateOrderProductStatus(orderId: Int!, status: OrderStatus!): OrderProduct!
   updateOrderStatus(orderId: Int!, providerId: Int!, status: OrderStatus!): Order!
   updateProduct(input: UpdateProductInput!): Product!
@@ -284,8 +285,14 @@ type OrderProduct {
   provider: Provider!
   providerId: Int!
   quantity: Int!
+
+  """Empresa de transporte encargada del envío"""
+  shippingCompany: String
   status: OrderStatus!
   total: Float!
+
+  """Código de seguimiento del paquete"""
+  trackingCode: String
   unitPrice: Float!
   updatedAt: DateTime!
 }
@@ -450,7 +457,7 @@ type Query {
   me: User!
   myProvider: Provider
   myServices: [Service!]!
-  ordersByProvider: [OrderProduct!]!
+  ordersProductsByProvider: [OrderProduct!]!
   product(id: Int!): Product!
   productBySlug(slug: String!): Product!
   products: [Product!]!
@@ -591,6 +598,12 @@ input UpdateServiceInput {
   id: Int!
   name: String
   price: Int!
+}
+
+input UpdateShippingInput {
+  orderId: Int!
+  shippingCompany: String!
+  trackingCode: String!
 }
 
 input UpdateUserInput {

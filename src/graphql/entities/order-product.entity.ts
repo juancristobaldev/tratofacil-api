@@ -46,6 +46,18 @@ export class OrderProduct {
   @Field(() => OrderStatus)
   status: OrderStatus;
 
+  @Field(() => String, {
+    nullable: true,
+    description: 'Empresa de transporte encargada del envío',
+  })
+  shippingCompany?: string;
+
+  @Field(() => String, {
+    nullable: true,
+    description: 'Código de seguimiento del paquete',
+  })
+  trackingCode?: string;
+
   // RELACIONES (Uso de funciones de flecha para evitar fallos de circularidad)
   @Field(() => User, { description: 'Cliente que realizó la compra' })
   client: User;
@@ -69,6 +81,17 @@ export class OrderProduct {
   updatedAt: Date;
 }
 
+@InputType()
+export class UpdateShippingInput {
+  @Field(() => Int)
+  orderId: number;
+
+  @Field(() => String)
+  shippingCompany: string;
+
+  @Field(() => String)
+  trackingCode: string;
+}
 /**
  * INPUT PARA CREAR UNA ORDEN
  */

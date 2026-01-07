@@ -4,11 +4,15 @@ import {
   BadRequestException,
   InternalServerErrorException,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentStatus, PaymentProvider, OrderStatus } from '@prisma/client';
 import { WebpayPlus, Options, Environment } from 'transbank-sdk';
-import { CreateOrderProductInput } from '../../graphql/entities/order-product.entity';
+import {
+  CreateOrderProductInput,
+  UpdateShippingInput,
+} from '../../graphql/entities/order-product.entity';
 import { WebpayResponse } from '../../graphql/entities/order.entity';
 
 @Injectable()
@@ -221,7 +225,44 @@ export class OrderProductService {
       );
     }
   }
+  async updateShippingDetails(userId: number, input: UpdateShippingInput) {
+    // 1. Buscar la
 
+    const provider = await this.prisma.provider.findFirst({
+      where: {
+        userId,
+      },
+    });
+    const order = await this.prisma.orderProduct.findUnique({
+      where: { id: input.orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Orden #${input.orderId} no encontrada`);
+    }
+
+    // 2. Validar que el proveedor sea el dueño de la orden
+
+    if (order.providerId !== provider?.id) {
+      throw new UnauthorizedException(
+        'No tienes permisos para gestionar esta orden',
+      );
+    }
+
+    // 3. Actualizar datos y estado
+    return this.prisma.orderProduct.update({
+      where: { id: input.orderId },
+      data: {
+        shippingCompany: input.shippingCompany,
+        trackingCode: input.trackingCode,
+        status: OrderStatus.COMPLETED, // Asumimos que al poner tracking, el estado pasa a ENVIADO/COMPLETADO
+      },
+      include: {
+        product: true,
+        client: true,
+      },
+    });
+  }
   // =====================================================
   // 5️⃣ Listar Órdenes por Proveedor
   // =====================================================

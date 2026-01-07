@@ -5,6 +5,7 @@ import {
   OrderProduct,
   CreateOrderProductInput,
   OrderProductWithPaymentResponse,
+  UpdateShippingInput,
 } from '../../graphql/entities/order-product.entity';
 import { WebpayResponse } from '../../graphql/entities/order.entity';
 import { OrderStatus } from '../../graphql/enums/order-status.enum';
@@ -64,9 +65,8 @@ export class OrderProductResolver {
    * QUERY: Listar todas las órdenes de productos recibidas por un proveedor.
    * Solo accesible para usuarios con rol PROVIDER.
    */
-  @Query(() => [OrderProduct], { name: 'ordersByProvider' })
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROVIDER)
+  @Query(() => [OrderProduct], { name: 'ordersProductsByProvider' })
+  @UseGuards(JwtAuthGuard)
   async getOrdersByProvider(@Context() context: any) {
     // Se extrae el provider.id del usuario autenticado para buscar sus órdenes.
     // El servicio espera el ID del proveedor, no del usuario base.
@@ -78,9 +78,20 @@ export class OrderProductResolver {
    * MUTACIÓN: Actualizar el estado de una orden (ej: de PROCESSING a COMPLETED).
    * Solo el proveedor dueño del producto puede realizar esta acción.
    */
+
+  @Mutation(() => OrderProduct, { name: 'updateOrderProductShipping' })
+  @UseGuards(JwtAuthGuard)
+  async updateOrderProductShipping(
+    @Args('input') input: UpdateShippingInput,
+    @Context() context: any,
+  ) {
+    const userId = context.req.user.id; // Asegúrate de obtener el ID correcto del token
+
+    return this.orderProductService.updateShippingDetails(userId, input);
+  }
+
   @Mutation(() => OrderProduct, { name: 'updateOrderProductStatus' })
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROVIDER)
+  @UseGuards(JwtAuthGuard)
   async updateOrderStatus(
     @Args('orderId', { type: () => Int }) orderId: number,
     @Args('status', { type: () => OrderStatus }) status: OrderStatus,
