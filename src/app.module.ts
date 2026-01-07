@@ -28,14 +28,21 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
   imports: [
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
-      autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+      // CORRECCIÓN CRÍTICA PARA VERCEL:
+      // En Vercel no podemos escribir en src/schema.gql (Read-Only).
+      // Usamos /tmp/schema.gql en producción o true (en memoria).
+      autoSchemaFile:
+        process.env.NODE_ENV === 'PRODUCTION' || process.env.VERCEL
+          ? '/tmp/schema.gql'
+          : join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
+      // Playground activado en dev, o usa Apollo Sandbox
+      playground: false,
+      introspection: true, // Importante habilitarlo en producción para vercel si usas tools externas
       context: ({ req, res }: { req: Request; res: Response }) => ({
         req,
         res,
       }),
-      // no más playground, Apollo Studio lo reemplaza
-      playground: false,
     }),
     ConfigModule.forRoot({ isGlobal: true }),
     AuthModule,

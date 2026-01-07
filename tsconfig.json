@@ -31,6 +31,8 @@
     "forceConsistentCasingInFileNames": true,
 
     /* 🧪 Globals */
-    "types": ["node", "jest"]
-  }
+    /* Se agregó "multer" a los types para solucionar los errores en AppController */
+    "types": ["node", "jest", "multer"]
+  },
+  "exclude": ["node_modules", "dist"]
 }
