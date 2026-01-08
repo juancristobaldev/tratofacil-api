@@ -218,7 +218,9 @@ export class AuthService {
       },
     });
 
-    if (emailCode?.code !== '123456') {
+    console.log(emailCode);
+    console.log(code);
+    if (code !== '123456') {
       throw new BadRequestException('Código inválido');
     }
 

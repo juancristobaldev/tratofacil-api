@@ -56,6 +56,7 @@ export class AuthResolver {
     @Args('credentials') credentials: CredentialsInput,
     @Args('identity') identity: IdentityInput,
   ): Promise<AuthType> {
+    console.log(code);
     // Retornamos el objeto completo (accessToken + user) para ser consistente con Login
     return await this.authService.confirmAndCreateUser(
       code,
