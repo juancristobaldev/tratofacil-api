@@ -57,18 +57,22 @@ model User {
   role          Role?    @default(CLIENT)
 
   provider      Provider?
-  orders        Order[]        @relation("ClientOrders")
-  productOrders OrderProduct[] @relation("ClientProductOrders")
+  orders        Order[]          @relation("ClientOrders")
+  productOrders OrderProduct[]   @relation("ClientProductOrders")
   reviews       ProviderReview[] @relation("ClientReviews")
+
+  // Nuevas relaciones para Trabajos y Reseñas de Productos
+  jobOrders      OrderJob[]       @relation("ClientJobOrders")
+  productReviews ReviewsProduct[] @relation("ClientProductReviews")
 }
 
 // =========================================================
 // 2. CATEGORÍAS Y SERVICIOS
 // =========================================================
 model Category {
-  id          Int      @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   name        String
-  slug        String   @unique
+  slug        String  @unique
   description String?
   parentId    Int?
   imageUrl    String?
@@ -79,9 +83,9 @@ model Category {
 }
 
 model Service {
-  id          Int      @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   name        String
-  slug        String   @unique
+  slug        String  @unique
   description String?
   imageUrl    String?
   categoryId  Int?
@@ -103,9 +107,9 @@ model Provider {
   location String?
   logoUrl  String?
 
-  rut      String?
-  bio      String?
-  phone    String?
+  rut   String?
+  bio   String?
+  phone String?
 
   bank         BankAccount?
   reviews      ProviderReview[]
@@ -117,6 +121,10 @@ model Provider {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   hobbys Hobby[]
+
+  // Nuevas relaciones
+  jobs           Job[]
+  productReviews ReviewsProduct[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -176,39 +184,40 @@ model ServiceProviderOnCity {
 // 6. MARKETPLACE (PRODUCTOS)
 // =========================================================
 model CategoryProduct {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   name        String
-  slug        String    @unique
+  slug        String   @unique
   description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   products    Product[]
 }
 
 model Product {
-  id                Int               @id @default(autoincrement())
-  name              String
-  slug              String            @unique
-  description       String?
-  specifications    Json?             // Especificaciones del producto (MySQL Json)
-  price             Float             // Precio base del proveedor
-  stock             Int               @default(0)
+  id             Int      @id @default(autoincrement())
+  name           String
+  slug           String   @unique
+  description    String?
+  specifications Json?              // Especificaciones del producto (MySQL Json)
+  price          Float              // Precio base del proveedor
+  stock          Int      @default(0)
   
   // ✅ RELACIONES ACTUALIZADAS
   images            ProductImage[]
   deliveryCondition ConditionDelivery? // Condiciones de entrega asociadas al producto
 
   providerId        Int
-  provider          Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider          Provider           @relation(fields: [providerId], references: [id], onDelete: Cascade)
   
   categoryProductId Int
-  categoryProduct   CategoryProduct   @relation(fields: [categoryProductId], references: [id], onDelete: Cascade)
+  categoryProduct   CategoryProduct    @relation(fields: [categoryProductId], references: [id], onDelete: Cascade)
 
   orders            OrderProduct[]
+  reviews           ReviewsProduct[]   // Relación agregada
 
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model ProductImage {
@@ -231,7 +240,7 @@ model ProviderReview {
   createdAt DateTime @default(now())
 
   clientId Int
-  client    User @relation("ClientReviews", fields: [clientId], references: [id], onDelete: Cascade)
+  client   User @relation("ClientReviews", fields: [clientId], references: [id], onDelete: Cascade)
 
   providerId Int
   provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
@@ -296,41 +305,41 @@ model Order {
 }
 
 model OrderProduct {
-  id          Int          @id @default(autoincrement())
-  clientId    Int
-  client      User         @relation("ClientProductOrders", fields: [clientId], references: [id], onDelete: Cascade)
-  providerId  Int
-  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  productId   Int
-  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
-  quantity    Int          @default(1)
-  unitPrice   Float
-  commission  Float
-  total       Float
-  status      OrderStatus  @default(PENDING)
+  id         Int      @id @default(autoincrement())
+  clientId   Int
+  client     User     @relation("ClientProductOrders", fields: [clientId], references: [id], onDelete: Cascade)
+  providerId Int
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1)
+  unitPrice  Float
+  commission Float
+  total      Float
+  status     OrderStatus @default(PENDING)
 
 
-// NEW FIELDS
+  // NEW FIELDS
   shippingCompany String?  
   trackingCode    String? 
-  payment     PaymentProduct?
+  payment         PaymentProduct?
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }
 
 model ConditionDelivery {
-  id                    Int      @id @default(autoincrement())
-  productId             Int      @unique
-  product               Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id                   Int      @id @default(autoincrement())
+  productId            Int      @unique
+  product              Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  deliveryType          String   // Ej: "Despacho a domicilio", "Retiro en tienda"
-  shippingPayer         String   // Ej: "Vendedor", "Comprador"
-  maxDispatchDays       Int      // Plazo máximo de despacho (días)
-  confirmationDeadline  DateTime // Fecha límite de confirmación (ej: antes de las 18:00)
+  deliveryType         String   // Ej: "Despacho a domicilio", "Retiro en tienda"
+  shippingPayer        String   // Ej: "Vendedor", "Comprador"
+  maxDispatchDays      Int      // Plazo máximo de despacho (días)
+  confirmationDeadline DateTime // Fecha límite de confirmación (ej: antes de las 18:00)
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([productId])
 }
@@ -353,8 +362,27 @@ model Payment {
 model PaymentProduct {
   id Int @id @default(autoincrement())
 
-  orderProductId Int          @unique
-  orderProduct   OrderProduct @relation(fields: [orderProductId], references: [id], onDelete: Cascade)
+  // Se hace opcional para soportar pago de Productos O Trabajos
+  orderProductId Int?          @unique
+  orderProduct   OrderProduct? @relation(fields: [orderProductId], references: [id], onDelete: Cascade)
+
+  amount        Float
+  provider      PaymentProvider
+  status        PaymentStatus   @default(INITIATED)
+  transactionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PaymentJob {
+  id Int @id @default(autoincrement())
+
+  // Se hace opcional para soportar pago de Productos O Trabajos
+ 
+  // Relación con OrderJob
+  orderJobId     Int?          @unique
+  orderJob       OrderJob?     @relation(fields: [orderJobId], references: [id], onDelete: Cascade)
 
   amount        Float
   provider      PaymentProvider
@@ -374,4 +402,71 @@ model EmailVerification {
   code      String
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+// =========================================================
+// 11. TRABAJOS Y RESEÑAS NUEVAS
+// =========================================================
+
+// Trabajo esporádico ofrecido por el Provider
+model Job {
+  id          Int      @id @default(autoincrement())
+  providerId  Int
+  title       String
+  description String?
+  price       Float?   // Presupuesto o precio del trabajo
+  
+  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  orders      OrderJob[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Orden de Trabajo (Contratación de un Job)
+model OrderJob {
+  id        Int         @id @default(autoincrement())
+  jobId     Int
+  clientId  Int
+  
+  status    OrderStatus @default(PENDING)
+  total     Float?      // Total acordado
+
+  job       Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  client    User        @relation("ClientJobOrders", fields: [clientId], references: [id], onDelete: Cascade)
+  
+  // Relacionado con PaymentProduct
+  payment   PaymentJob?
+  review    ReviewsJob[]
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+// Reseña de un Trabajo
+model ReviewsJob {
+  id         Int      @id @default(autoincrement())
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  orderJobId Int   
+  orderJob   OrderJob @relation(fields: [orderJobId], references: [id], onDelete: Cascade)
+}
+
+// Reseña de un Producto
+model ReviewsProduct {
+  id         Int      @id @default(autoincrement())
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  providerId Int
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  clientId   Int
+  client     User     @relation("ClientProductReviews", fields: [clientId], references: [id], onDelete: Cascade)
 }
