@@ -50,6 +50,7 @@ model User {
   password      String
   displayName   String
   nicename      String
+  phone         String
   url           String   @default("")
   status        Int      @default(0)
   registered    DateTime @default(now())
@@ -110,7 +111,6 @@ model Provider {
 
   rut   String?
   bio   String?
-  phone String?
 
   bank         BankAccount?
   reviews      ProviderReview[]

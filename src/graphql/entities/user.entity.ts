@@ -20,6 +20,7 @@ import { Provider } from './provider.entity';
 import { Order } from './order.entity';
 import { ProviderReview } from './provider.entity';
 import { OrderProduct } from './order-product.entity';
+import { OrderJob } from './order-job.entity';
 
 /**
  * ENTIDAD USER (Output Object Type)
@@ -44,6 +45,8 @@ export class User {
   nicename: string;
 
   @Field()
+  phone: string;
+  @Field()
   url: string;
 
   @Field(() => Int)
@@ -64,7 +67,8 @@ export class User {
 
   @Field(() => [Order], { nullable: 'itemsAndList' })
   orders?: Order[];
-
+  @Field(() => [OrderJob], { nullable: 'itemsAndList' })
+  jobOrders?: OrderJob[];
   @Field(() => [ProviderReview], { nullable: 'itemsAndList' })
   reviews?: ProviderReview[];
   @Field(() => [OrderProduct], { nullable: true })
@@ -79,6 +83,10 @@ export class RegisterUserInput {
   @IsEmail({}, { message: 'El correo electrónico no es válido' })
   @IsNotEmpty()
   email: string;
+
+  @Field()
+  @IsNotEmpty()
+  phone: string;
 
   @Field()
   @IsString()
@@ -108,6 +116,10 @@ export class UpdateUserInput {
   @Field(() => Int)
   @IsInt()
   id: number;
+
+  @Field()
+  @IsNotEmpty()
+  phone?: string;
 
   @Field({ nullable: true })
   @IsOptional()

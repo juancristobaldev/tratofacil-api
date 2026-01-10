@@ -62,7 +62,7 @@ export class AuthService {
    * REGISTER: Registro limpio en tabla User
    */
   async register(registerInput: RegisterUserInput): Promise<AuthType> {
-    const { email, password, role, displayName } = registerInput;
+    const { email, password, role, displayName, phone } = registerInput;
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -78,6 +78,7 @@ export class AuthService {
 
     const newUser = await this.prisma.user.create({
       data: {
+        phone,
         email,
         password: hashedPassword,
         username,
@@ -231,6 +232,7 @@ export class AuthService {
     // Creamos el usuario y el perfil de proveedor en una sola transacción
     const newUser = await this.prisma.user.create({
       data: {
+        phone: credentials.phone,
         email: credentials.email,
         username,
         password: hashedPassword,

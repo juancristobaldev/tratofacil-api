@@ -138,7 +138,6 @@ input CreateProviderInput {
   location: String
   logoUrl: String
   name: String!
-  phone: String
   rut: String!
 }
 
@@ -168,6 +167,7 @@ input CreateServiceInput {
 input CredentialsInput {
   email: String!
   password: String!
+  phone: String!
 }
 
 """
@@ -509,6 +509,11 @@ type Query {
   getCertificateById(id: Int!): ProviderCertificate!
   getCertificates(sortOrder: String = "desc", verified: Boolean): [ProviderCertificate!]!
   getMyCertificates: [ProviderCertificate!]!
+
+  """
+  Retorna todas las órdenes de trabajo asociadas a los Jobs de un proveedor específico
+  """
+  getOrderJobsByProvider(providerId: Int!): [OrderJob!]!
   getOrdersByProvider(providerId: Int!): [Order!]!
   getOrdersProductByProvider(providerId: Int!): [OrderProduct!]!
   getServicesProvider(providerId: Int!): [Service!]!
@@ -516,7 +521,7 @@ type Query {
   hobbiesByProvider(providerId: Int!): [Hobby!]!
   hobby(id: Int!): Hobby!
   job(id: Int!): Job!
-  jobs: [Job!]!
+  jobs(skip: Int!, take: Int!): [Job!]!
   mainCategories: [Category!]!
   mainCategoryProducts: [CategoryProduct!]!
   me: User!
@@ -543,6 +548,7 @@ input RegisterUserInput {
   displayName: String
   email: String!
   password: String!
+  phone: String!
   role: Role! = CLIENT
   username: String
 }
@@ -697,6 +703,7 @@ input UpdateUserInput {
   email: String
   id: Int!
   nicename: String
+  phone: String!
   url: String
 }
 
@@ -705,8 +712,10 @@ type User {
   displayName: String!
   email: String!
   id: Int!
+  jobOrders: [OrderJob]
   nicename: String!
   orders: [Order]
+  phone: String!
   productOrders: [OrderProduct!]
   provider: Provider
   registered: DateTime!

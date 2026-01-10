@@ -17,26 +17,53 @@ export class JobsInstaService {
   // 1. GESTIÓN DE TRABAJOS (JOBS)
   // =========================================================
 
-  async createJob(createJobInput: CreateJobInput, providerId: number) {
+  async createJob(createJobInput: CreateJobInput, userId: number) {
     return this.prisma.job.create({
       data: {
         ...createJobInput,
-        providerId,
+        provider: {
+          connect: {
+            userId,
+          },
+        },
       },
       include: { provider: true },
     });
   }
 
-  async findAllJobs() {
-    return this.prisma.job.findMany({
+  async findAllJobs(skip: number, take: number) {
+    // 1. Obtenemos todos los IDs disponibles (Operación ligera)
+    const allIds = await this.prisma.job.findMany({
+      select: { id: true },
+    });
+
+    // 2. Mezclamos los IDs de forma aleatoria (Algoritmo Fisher-Yates)
+    // Nota: Para que la paginación no repita, la mezcla debe ser consistente
+    // o mezclar todos y luego aplicar el slice.
+    const shuffledIds = allIds
+      .map((item) => item.id)
+      .sort(() => Math.random() - 0.5); // Mezcla simple
+
+    // 3. Seleccionamos los IDs según la paginación
+    const idsToFetch = shuffledIds.slice(skip, skip + take);
+
+    if (idsToFetch.length === 0) return [];
+
+    // 4. Pedimos los datos completos solo para esos IDs
+    const jobs = await this.prisma.job.findMany({
+      where: {
+        id: { in: idsToFetch },
+      },
       include: {
         provider: true,
         _count: { select: { orders: true, reviews: true } },
       },
-      orderBy: { createdAt: 'desc' },
     });
-  }
 
+    // 5. Prisma por defecto ordena por ID al usar 'in',
+    // re-ordenamos para mantener el orden aleatorio del array idsToFetch
+    return idsToFetch.map((id) => jobs.find((job) => job.id === id));
+  }
   async findOneJob(id: number) {
     const job = await this.prisma.job.findUnique({
       where: { id },

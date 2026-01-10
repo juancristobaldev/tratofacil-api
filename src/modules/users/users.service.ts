@@ -66,6 +66,9 @@ export class UserService {
             },
           },
         },
+        jobOrders: {
+          include: {},
+        },
       },
     });
 
@@ -99,6 +102,7 @@ export class UserService {
 
     return this.prisma.user.create({
       data: {
+        phone: input.phone,
         email: input.email,
         password: hashedPassword,
         username: finalUsername,

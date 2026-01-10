@@ -61,7 +61,7 @@ export class ProvidersService {
   }
   async register(userId: number, input: CreateProviderInput) {
     // Nota: 'input' aquí viene de la lógica donde ya se separó identity y bank
-    const { name, phone, company, location, bank, logoUrl } = input;
+    const { name, company, location, bank, logoUrl } = input;
 
     // 1. Verificar si el usuario ya tiene un perfil de proveedor
     const existing = await this.prisma.provider.findUnique({
@@ -98,7 +98,6 @@ export class ProvidersService {
         userId,
         name: company ?? '',
         slug,
-        phone: phone, // Columna nativa en la tabla Provider
         location: location || 'Chile',
         bio: '',
         logoUrl: logoUrl || '',

@@ -302,11 +302,6 @@ export class CreateProviderInput {
   @IsString()
   company?: string;
 
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsString()
-  phone?: string;
-
   @Field(() => BankAccountInput, { nullable: true })
   @IsOptional()
   @ValidateNested()

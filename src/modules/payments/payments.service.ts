@@ -640,11 +640,13 @@ export class PaymentService {
   // =====================================================
   // 5️⃣ Listar Órdenes de Trabajo por Proveedor
   // =====================================================
-  async getOrderJobsByProviderId(providerId: number) {
+  async getOrderJobsByProviderId(userId: number) {
     return this.prisma.orderJob.findMany({
       where: {
         job: {
-          providerId: providerId,
+          provider: {
+            userId,
+          },
         },
         payment: {
           status: PaymentStatus.CONFIRMED,

@@ -34,8 +34,11 @@ export class JobsInstaResolver {
   // =========================================================
 
   @Query(() => [Job], { name: 'jobs' })
-  async findAllJobs() {
-    return this.jobsInstaService.findAllJobs();
+  async findAllJobs(
+    @Args('skip', { type: () => Int }) skip: number,
+    @Args('take', { type: () => Int }) take: number,
+  ) {
+    return this.jobsInstaService.findAllJobs(skip, take);
   }
 
   @Query(() => Job, { name: 'job' })
@@ -61,8 +64,11 @@ export class JobsInstaResolver {
     @Args('input') createJobInput: CreateJobInput,
     @Context() context: any,
   ) {
-    const providerId = context.req.user.providerId; // Asumiendo que el JWT trae el providerId
-    return this.jobsInstaService.createJob(createJobInput, providerId);
+    const userId = context.req.user.id;
+
+    console.log({ userId });
+    // Asumiendo que el JWT trae el userId
+    return this.jobsInstaService.createJob(createJobInput, userId);
   }
 
   @Mutation(() => Job)
@@ -114,7 +120,26 @@ export class JobsInstaResolver {
   async confirmWebpayJob(@Args('token') token: string) {
     return this.paymentJobService.confirmWebpayJobTransaction(token);
   }
+  @Query(() => [OrderJob], {
+    name: 'getOrderJobsByProvider',
+    description:
+      'Retorna todas las órdenes de trabajo asociadas a los Jobs de un proveedor específico',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROVIDER)
+  async getOrderJobsByProvider(
+    @Args('providerId', { type: () => Int }) providerId: number,
+    @Context() context: any,
+  ) {
+    const userId = context.req.user.id;
+    // Validación de seguridad opcional: Verificar que el providerId coincida con el usuario logueado
+    // const user = context.req.user;
+    // if (user.role !== 'ADMIN' && user.providerId !== providerId) {
+    //   throw new ForbiddenException('No tienes permiso para ver estas órdenes');
+    // }
 
+    return this.paymentJobService.getOrderJobsByProviderId(userId);
+  }
   // =========================================================
   // 4. MUTATIONS - RESEÑAS
   // =========================================================

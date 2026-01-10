@@ -53,5 +53,9 @@ export class CredentialsInput {
 
   @Field()
   @IsNotEmpty()
+  phone: string;
+
+  @Field()
+  @IsNotEmpty()
   password: string;
 }
