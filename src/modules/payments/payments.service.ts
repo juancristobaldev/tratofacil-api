@@ -265,9 +265,7 @@ export class PaymentService {
           status: OrderStatus.PROCESSING,
           serviceProviderId: offer.id,
         },
-      });
-
-      // Creamos el registro de pago inicial
+      }); // Creamos el registro de pago inicial
       const payment = await tx.payment.create({
         data: {
           orderId: order.id,
@@ -276,6 +274,8 @@ export class PaymentService {
           status: PaymentStatus.INITIATED,
         },
       });
+
+      console.log('create order with payment', { order, payment });
 
       return { order, payment };
     });
@@ -310,11 +310,14 @@ export class PaymentService {
         returnUrl,
       );
 
-      await this.prisma.payment.update({
+      console.log('create transaction', { token: response.token });
+
+      const updatedPayment = await this.prisma.payment.update({
         where: { id: order.payment.id },
         data: { transactionId: response.token },
       });
 
+      console.log({ updatedPayment });
       return {
         token: response.token,
         url: response.url,
@@ -335,11 +338,14 @@ export class PaymentService {
       include: { order: true },
     });
 
+    console.log('confirm transanction', { token, payment });
+
     if (!payment) throw new NotFoundException('Transacción no encontrada');
 
     try {
       const commitResponse = await this.tbk().commit(token);
 
+      console.log({ commitResponse });
       const success =
         commitResponse.status === 'AUTHORIZED' &&
         commitResponse.response_code === 0;
@@ -347,13 +353,20 @@ export class PaymentService {
       const newPaymentStatus = success
         ? PaymentStatus.CONFIRMED
         : PaymentStatus.FAILED;
+      console.log({ newPaymentStatus });
+
       const newOrderStatus = success ? OrderStatus.PENDING : OrderStatus.FAILED;
 
+      console.log({ newOrderStatus });
       return await this.prisma.$transaction(async (tx) => {
-        await tx.payment.update({
-          where: { id: payment.id },
-          data: { status: newPaymentStatus },
-        });
+        await tx.payment
+          .update({
+            where: { id: payment.id },
+            data: { status: newPaymentStatus },
+          })
+          .then((data) => {
+            console.log(data);
+          });
 
         return tx.order.update({
           where: { id: payment.orderId },

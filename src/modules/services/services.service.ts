@@ -13,6 +13,7 @@ import {
   UpdateServiceInput,
 } from 'src/graphql/entities/service.entity';
 import { ServiceProviderOnCity } from 'src/graphql/entities/register-provider';
+import { PaymentStatus } from 'src/graphql/enums/payment-status.enum';
 
 @Injectable()
 export class ServicesService {
@@ -169,10 +170,35 @@ export class ServicesService {
       },
       include: {
         service: true,
-        provider: { include: { user: true } },
+
+        provider: {
+          include: {
+            user: true,
+            reviews: {
+              include: {
+                order: {
+                  include: {
+                    payment: {
+                      where: {
+                        status: PaymentStatus.CONFIRMED,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
+    console.log(offer, offer?.provider.reviews, offer?.provider.reviews);
+
+    console.log(
+      offer?.provider.reviews.forEach((review) => {
+        console.log(review.order?.payment);
+      }),
+    );
     if (!offer) throw new NotFoundException('Oferta de servicio no encontrada');
 
     // Usamos cast para asegurar compatibilidad con la clase ServiceProvider
