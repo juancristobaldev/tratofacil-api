@@ -98,11 +98,22 @@ input CreateHobbyInput {
   providerId: Int!
 }
 
+input CreateJobInput {
+  description: String
+  price: Float
+  title: String!
+}
+
 input CreateOrderInput {
   serviceProviderId: Int!
   total: Float!
   wcOrderId: Int
   wcOrderKey: String
+}
+
+input CreateOrderJobInput {
+  jobId: Int!
+  total: Float
 }
 
 input CreateOrderProductInput {
@@ -134,6 +145,13 @@ input CreateProviderInput {
 input CreateReviewInput {
   comment: String
   orderId: Int!
+  providerId: Int!
+  rating: Int!
+}
+
+input CreateReviewsJobInput {
+  comment: String
+  jobId: Int!
   providerId: Int!
   rating: Int!
 }
@@ -174,6 +192,19 @@ input IdentityInput {
   rut: String!
 }
 
+type Job {
+  createdAt: DateTime!
+  description: String
+  id: Int!
+  orders: [OrderJob!]
+  price: Float
+  provider: Provider!
+  providerId: Int!
+  reviews: [ReviewsJob!]
+  title: String!
+  updatedAt: DateTime!
+}
+
 input LoginInput {
   email: String!
   password: String!
@@ -198,15 +229,19 @@ type Mutation {
   confirmEmailAndCreateUser(code: String!, credentials: CredentialsInput!, identity: IdentityInput!): AuthType!
   confirmPayment(token: String!): Order!
   confirmProductPayment(token: String!): OrderProduct!
+  confirmWebpayJob(token: String!): OrderJob!
   confirmWebpayProductTransaction(token: String!): OrderProduct!
   createCategory(input: CreateCategoryInput!): Category!
   createCategoryProduct(input: CreateCategoryProductInput!): CategoryProduct!
   createCertificate(input: CreateCertificateInput!): ProviderCertificate!
   createHobby(createHobbyInput: CreateHobbyInput!): Hobby!
+  createJob(input: CreateJobInput!): Job!
   createOrder(input: CreateOrderInput!): Order!
+  createOrderJobWithPayment(input: CreateOrderJobInput!): OrderJob!
   createOrderProduct(input: CreateOrderProductInput!): OrderProductWithPaymentResponse!
   createProduct(input: CreateProductInput!): Product!
   createReview(input: CreateReviewInput!): ProviderReview!
+  createReviewJob(input: CreateReviewsJobInput!): ReviewsJob!
   createService(input: CreateServiceInput!): ServiceProvider!
   deleteCategory(id: Int!): Category!
   deleteCertificate(id: Int!): Boolean!
@@ -215,6 +250,7 @@ type Mutation {
 
   """Verifica disponibilidad de email y envía código de validación"""
   findCredentialsAfterSendEmail(input: CredentialsInput!): Boolean!
+  initWebpayJob(orderJobId: Int!, returnUrl: String!): WebpayResponse!
   initWebpayProductTransaction(orderId: Int!, returnUrl: String!): WebpayResponse!
   initiatePayment(orderId: Int!, returnUrl: String!): WebpayResponse!
   initiateProductPayment(orderProductId: Int!, returnUrl: String!): WebpayResponse!
@@ -227,11 +263,13 @@ type Mutation {
   registerProvider(input: CreateProviderInput!): Provider!
   rejectCertificate(id: Int!): ProviderCertificate!
   removeCategoryProduct(id: Int!): CategoryProduct!
+  removeJob(id: Int!): Job!
   removeProduct(id: Int!): Product!
   updateBank(input: BankAccountInput!, providerId: Int!): BankAccount!
   updateCategory(id: Int!, input: UpdateCategoryInput!): Category!
   updateCategoryProduct(input: UpdateCategoryProductInput!): CategoryProduct!
   updateCertificate(input: UpdateCertificateInput!): ProviderCertificate!
+  updateJob(input: UpdateJobInput!): Job!
   updateOrderProductShipping(input: UpdateShippingInput!): OrderProduct!
   updateOrderProductStatus(orderId: Int!, status: OrderStatus!): OrderProduct!
   updateOrderStatus(orderId: Int!, providerId: Int!, status: OrderStatus!): Order!
@@ -264,6 +302,19 @@ type Order {
   updatedAt: DateTime!
   wcOrderId: Int
   wcOrderKey: String
+}
+
+type OrderJob {
+  client: User!
+  clientId: Int!
+  createdAt: DateTime!
+  id: Int!
+  job: Job!
+  jobId: Int!
+  payment: PaymentJob
+  status: OrderStatus!
+  total: Float
+  updatedAt: DateTime!
 }
 
 type OrderProduct {
@@ -320,6 +371,18 @@ type Payment {
   """Orden asociada a este pago"""
   order: Order!
   orderId: Int!
+  provider: PaymentProvider!
+  status: PaymentStatus!
+  transactionId: String
+  updatedAt: DateTime!
+}
+
+type PaymentJob {
+  amount: Float!
+  createdAt: DateTime!
+  id: Int!
+  orderJob: OrderJob
+  orderJobId: Int
   provider: PaymentProvider!
   status: PaymentStatus!
   transactionId: String
@@ -452,9 +515,12 @@ type Query {
   hobbies: [Hobby!]!
   hobbiesByProvider(providerId: Int!): [Hobby!]!
   hobby(id: Int!): Hobby!
+  job(id: Int!): Job!
+  jobs: [Job!]!
   mainCategories: [Category!]!
   mainCategoryProducts: [CategoryProduct!]!
   me: User!
+  myOrderJobs: [OrderJob!]!
   myProvider: Provider
   myServices: [Service!]!
   ordersProductsByProvider: [OrderProduct!]!
@@ -479,6 +545,19 @@ input RegisterUserInput {
   password: String!
   role: Role! = CLIENT
   username: String
+}
+
+type ReviewsJob {
+  client: User!
+  clientId: Int!
+  comment: String
+  createdAt: DateTime!
+  id: Int!
+  job: Job!
+  jobId: Int!
+  provider: Provider!
+  providerId: Int!
+  rating: Int!
 }
 
 """Roles de usuario permitidos en la aplicación"""
@@ -566,6 +645,13 @@ input UpdateCertificateInput {
   institution: String
   title: String
   year: Int
+}
+
+input UpdateJobInput {
+  description: String
+  id: Int!
+  price: Float
+  title: String
 }
 
 input UpdateProductInput {
