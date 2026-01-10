@@ -56,6 +56,42 @@ export class PaymentJob {
   updatedAt: Date;
 }
 
+@InputType()
+export class CreatePaymentJobInput {
+  @Field(() => Int)
+  @IsNotEmpty()
+  @IsInt()
+  orderJobId: number;
+
+  @Field(() => Float)
+  @IsNotEmpty()
+  @IsNumber()
+  amount: number;
+
+  @Field(() => PaymentProvider)
+  @IsNotEmpty()
+  @IsEnum(PaymentProvider)
+  provider: PaymentProvider;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  transactionId?: string;
+}
+
+@InputType()
+export class UpdatePaymentJobInput extends PartialType(CreatePaymentJobInput) {
+  @Field(() => Int)
+  @IsNotEmpty()
+  @IsInt()
+  id: number;
+
+  @Field(() => PaymentStatus, { nullable: true })
+  @IsOptional()
+  @IsEnum(PaymentStatus)
+  status?: PaymentStatus;
+}
+
 @ObjectType()
 export class PaymentProduct {
   @Field(() => Int)
@@ -159,37 +195,4 @@ export class UpdatePaymentStatusInput {
   @Field(() => PaymentStatus)
   @IsEnum(PaymentStatus)
   status: PaymentStatus;
-}
-
-export class CreatePaymentJobInput {
-  @Field(() => Int)
-  @IsNotEmpty()
-  @IsInt()
-  orderJobId: number;
-
-  @Field(() => Float)
-  @IsNotEmpty()
-  @IsNumber()
-  amount: number;
-
-  @Field(() => PaymentProvider)
-  @IsNotEmpty()
-  @IsEnum(PaymentProvider)
-  provider: PaymentProvider;
-
-  @Field(() => String, { nullable: true })
-  @IsOptional()
-  @IsString()
-  transactionId?: string;
-}
-
-@InputType()
-export class UpdatePaymentJobInput extends PartialType(CreatePaymentJobInput) {
-  @Field(() => Int)
-  id: number;
-
-  @Field(() => PaymentStatus, { nullable: true })
-  @IsOptional()
-  @IsEnum(PaymentStatus)
-  status?: PaymentStatus;
 }

@@ -14,6 +14,7 @@ import { PaymentStatus, PaymentProvider } from '@prisma/client';
 import { WebpayPlus, Options, Environment } from 'transbank-sdk';
 import { OrderStatus } from 'src/graphql/enums/order-status.enum';
 import { CreateOrderProductInput } from 'src/graphql/entities/order-product.entity';
+import { CreateOrderJobInput } from 'src/graphql/entities/order-job.entity';
 
 @Injectable()
 export class PaymentService {
@@ -203,7 +204,7 @@ export class PaymentService {
 
       // Si el pago es exitoso, marcamos la orden como SUCCESS (o PROCESSING según tu flujo)
       const newOrderStatus = success ? OrderStatus.PENDING : OrderStatus.FAILED;
-
+      if (!payment || !payment.orderProduct) return;
       // Ejecutamos la actualización en una transacción de base de datos
       return await this.prisma.$transaction(async (tx) => {
         // 1. Actualizar el estado del pago
@@ -477,6 +478,210 @@ export class PaymentService {
     }
 
     return this.prisma.order.update({
+      where: { id: orderId },
+      data: { status },
+    });
+  }
+
+  // =====================================================
+  // 2️⃣ Crear Orden de Trabajo y Registro de Pago
+  // =====================================================
+  async createOrderJobWithPayment(userId: number, input: CreateOrderJobInput) {
+    // Buscar el Job (Trabajo esporádico) y validar su existencia
+    const job = await this.prisma.job.findUnique({
+      where: { id: input.jobId },
+    });
+
+    if (!job) {
+      throw new NotFoundException(
+        'El trabajo esporádico seleccionado no existe',
+      );
+    }
+
+    // El precio puede venir del input (negociado) o del Job original
+    const amountToPay = input.total || job.price || 0;
+
+    if (amountToPay <= 0) {
+      throw new BadRequestException('El monto de la orden debe ser mayor a 0');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Crear la orden de trabajo (OrderJob)
+      const orderJob = await tx.orderJob.create({
+        data: {
+          jobId: job.id,
+          clientId: userId,
+          total: amountToPay,
+          status: OrderStatus.PENDING,
+        },
+      });
+
+      // 2. Crear el registro de pago inicial (PaymentJob)
+      const paymentJob = await tx.paymentJob.create({
+        data: {
+          orderJobId: orderJob.id,
+          amount: amountToPay,
+          provider: PaymentProvider.WEBPAY,
+          status: PaymentStatus.INITIATED,
+        },
+      });
+
+      return { orderJob, paymentJob };
+    });
+  }
+
+  // =====================================================
+  // 3️⃣ Iniciar Transacción Webpay para Jobs
+  // =====================================================
+  async createWebpayJobTransaction(
+    orderJobId: number,
+    returnUrl: string,
+  ): Promise<WebpayResponse> {
+    const orderJob = await this.prisma.orderJob.findUnique({
+      where: { id: orderJobId },
+      include: { payment: true },
+    });
+
+    if (!orderJob)
+      throw new NotFoundException('Orden de trabajo no encontrada');
+    if (!orderJob.payment)
+      throw new BadRequestException('No existe un registro de pago asociado');
+
+    if (
+      orderJob.status === OrderStatus.SUCCESS ||
+      orderJob.status === OrderStatus.COMPLETED
+    ) {
+      throw new BadRequestException('Esta orden de trabajo ya ha sido pagada');
+    }
+
+    const buyOrder = `JOB-ORD-${orderJob.id}-${Date.now()}`;
+    const sessionId = `SES-JOB-${orderJob.clientId}-${Date.now()}`;
+
+    try {
+      const response = await this.tbk().create(
+        buyOrder,
+        sessionId,
+        orderJob.total,
+        returnUrl,
+      );
+
+      // Actualizamos el PaymentJob con el token de Transbank
+      await this.prisma.paymentJob.update({
+        where: { id: orderJob.payment.id },
+        data: { transactionId: response.token },
+      });
+
+      return {
+        token: response.token,
+        url: response.url,
+      };
+    } catch (error: any) {
+      throw new InternalServerErrorException(
+        'Error al iniciar Webpay para Job: ' + error.message,
+      );
+    }
+  }
+
+  // =====================================================
+  // 4️⃣ Confirmar Pago Webpay para Jobs
+  // =====================================================
+  async confirmWebpayJobTransaction(token: string) {
+    const payment = await this.prisma.paymentJob.findFirst({
+      where: { transactionId: token },
+      include: { orderJob: true },
+    });
+
+    if (!payment)
+      throw new NotFoundException('Transacción de trabajo no encontrada');
+
+    try {
+      const commitResponse = await this.tbk().commit(token);
+
+      const success =
+        commitResponse.status === 'AUTHORIZED' &&
+        commitResponse.response_code === 0;
+
+      const newPaymentStatus = success
+        ? PaymentStatus.CONFIRMED
+        : PaymentStatus.FAILED;
+
+      // Al ser un Job (servicio), suele pasar a PROCESSING si se paga con éxito
+      const newOrderStatus = success ? OrderStatus.PENDING : OrderStatus.FAILED;
+
+      return await this.prisma.$transaction(async (tx) => {
+        // 1. Actualizar estado del pago
+        await tx.paymentJob.update({
+          where: { id: payment.id },
+          data: { status: newPaymentStatus },
+        });
+
+        // 2. Actualizar estado de la orden y retornar con relaciones
+        return tx.orderJob.update({
+          where: { id: payment.orderJobId },
+          data: { status: newOrderStatus },
+          include: {
+            payment: true,
+            client: true,
+            job: {
+              include: {
+                provider: true,
+              },
+            },
+          },
+        });
+      });
+    } catch (error: any) {
+      throw new InternalServerErrorException(
+        'Error al confirmar transacción de Job: ' + error.message,
+      );
+    }
+  }
+
+  // =====================================================
+  // 5️⃣ Listar Órdenes de Trabajo por Proveedor
+  // =====================================================
+  async getOrderJobsByProviderId(providerId: number) {
+    return this.prisma.orderJob.findMany({
+      where: {
+        job: {
+          providerId: providerId,
+        },
+        payment: {
+          status: PaymentStatus.CONFIRMED,
+        },
+      },
+      include: {
+        client: true,
+        payment: true,
+        job: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  // =====================================================
+  // 6️⃣ Actualizar Estado de la Orden de Trabajo
+  // =====================================================
+  async updateOrderJobStatus(
+    orderId: number,
+    status: OrderStatus,
+    providerId: number,
+  ) {
+    const order = await this.prisma.orderJob.findUnique({
+      where: { id: orderId },
+      include: { job: true },
+    });
+
+    // Validamos que el Job de la orden pertenezca al proveedor
+    if (!order || order.job?.providerId !== providerId) {
+      throw new ForbiddenException(
+        'No tienes permiso para actualizar esta orden de trabajo',
+      );
+    }
+
+    return this.prisma.orderJob.update({
       where: { id: orderId },
       data: { status },
     });

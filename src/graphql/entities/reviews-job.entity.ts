@@ -1,6 +1,10 @@
-import { ObjectType, Field, Int } from '@nestjs/graphql';
-import { OrderJob } from './order-job.entity';
-import { InputType, PartialType } from '@nestjs/graphql';
+import {
+  ObjectType,
+  Field,
+  Int,
+  InputType,
+  PartialType,
+} from '@nestjs/graphql';
 import {
   IsNotEmpty,
   IsInt,
@@ -9,6 +13,9 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { Job } from './job.entity';
+import { Provider } from './provider.entity';
+import { User } from './user.entity';
 
 @ObjectType()
 export class ReviewsJob {
@@ -22,10 +29,22 @@ export class ReviewsJob {
   comment?: string;
 
   @Field(() => Int)
-  orderJobId: number;
+  jobId: number;
 
-  @Field(() => OrderJob)
-  orderJob: OrderJob;
+  @Field(() => Job)
+  job: Job;
+
+  @Field(() => Int)
+  providerId: number;
+
+  @Field(() => Provider)
+  provider: Provider;
+
+  @Field(() => Int)
+  clientId: number;
+
+  @Field(() => User)
+  client: User;
 
   @Field(() => Date)
   createdAt: Date;
@@ -36,7 +55,12 @@ export class CreateReviewsJobInput {
   @Field(() => Int)
   @IsNotEmpty()
   @IsInt()
-  orderJobId: number;
+  jobId: number;
+
+  @Field(() => Int)
+  @IsNotEmpty()
+  @IsInt()
+  providerId: number;
 
   @Field(() => Int)
   @IsNotEmpty()
@@ -49,10 +73,14 @@ export class CreateReviewsJobInput {
   @IsOptional()
   @IsString()
   comment?: string;
+
+  // El clientId se obtiene generalmente del contexto de autenticación en el resolver
 }
 
 @InputType()
 export class UpdateReviewsJobInput extends PartialType(CreateReviewsJobInput) {
   @Field(() => Int)
+  @IsNotEmpty()
+  @IsInt()
   id: number;
 }

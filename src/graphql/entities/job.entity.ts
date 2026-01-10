@@ -9,6 +9,8 @@ import {
 import { IsNotEmpty, IsString, IsOptional, IsNumber } from 'class-validator';
 import { Provider } from './provider.entity';
 import { OrderJob } from './order-job.entity';
+import { ReviewsJob } from './reviews-job.entity';
+
 @ObjectType()
 export class Job {
   @Field(() => Int)
@@ -31,6 +33,9 @@ export class Job {
 
   @Field(() => [OrderJob], { nullable: true })
   orders?: OrderJob[];
+
+  @Field(() => [ReviewsJob], { nullable: true })
+  reviews?: ReviewsJob[];
 
   @Field(() => Date)
   createdAt: Date;

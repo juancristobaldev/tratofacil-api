@@ -23,6 +23,7 @@ import { CategoriesProductModule } from './modules/categories-product/categories
 import { ProductModule } from './modules/product/product.module';
 import { OrderProductModule } from './modules/order-product/order-product.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
+import { JobsInstaModule } from './modules/jobs-insta/jobs-insta.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
     ProductModule,
     OrderProductModule,
     MarketplaceModule,
+    JobsInstaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

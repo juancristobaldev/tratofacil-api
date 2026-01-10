@@ -1,8 +1,11 @@
-import { ObjectType, Field, Int, Float } from '@nestjs/graphql';
-import { OrderStatus } from '../enums/order-status.enum';
-import { Job } from './job.entity';
-import { User } from './user.entity';
-import { InputType, PartialType } from '@nestjs/graphql';
+import {
+  ObjectType,
+  Field,
+  Int,
+  Float,
+  InputType,
+  PartialType,
+} from '@nestjs/graphql';
 import {
   IsNotEmpty,
   IsInt,
@@ -10,8 +13,10 @@ import {
   IsNumber,
   IsEnum,
 } from 'class-validator';
+import { OrderStatus } from '../enums/order-status.enum';
+import { Job } from './job.entity';
+import { User } from './user.entity';
 import { PaymentJob } from './payment.entity';
-import { ReviewsJob } from './reviews-job.entity';
 
 @ObjectType()
 export class OrderJob {
@@ -39,9 +44,6 @@ export class OrderJob {
   @Field(() => PaymentJob, { nullable: true })
   payment?: PaymentJob;
 
-  @Field(() => [ReviewsJob], { nullable: true })
-  review?: ReviewsJob[];
-
   @Field(() => Date)
   createdAt: Date;
 
@@ -61,15 +63,15 @@ export class CreateOrderJobInput {
   @IsNumber()
   total?: number;
 
-  // Nota: clientId suele inyectarse desde el request/auth user,
-  // pero si necesitas enviarlo manualmente:
-  // @Field(() => Int)
-  // clientId: number;
+  // El clientId se maneja normalmente vía AuthGuard/Context,
+  // no se incluye aquí para evitar que un usuario cree órdenes para otros.
 }
 
 @InputType()
 export class UpdateOrderJobInput extends PartialType(CreateOrderJobInput) {
   @Field(() => Int)
+  @IsNotEmpty()
+  @IsInt()
   id: number;
 
   @Field(() => OrderStatus, { nullable: true })
