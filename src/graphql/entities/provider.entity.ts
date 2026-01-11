@@ -204,6 +204,11 @@ export class Provider {
   name: string;
 
   @Field()
+  planActive: boolean;
+  @Field()
+  plan: string;
+
+  @Field()
   slug: string;
 
   @Field(() => String, { nullable: true })

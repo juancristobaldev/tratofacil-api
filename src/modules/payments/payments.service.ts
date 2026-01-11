@@ -835,13 +835,18 @@ export class PaymentService {
         returnUrl,
       );
 
-      console.log('create transaction plans', { token: response.token });
+      console.log('create transaction plans', {
+        token: response.token,
+        id: planOrder.payment.id,
+      });
 
       // Actualizamos el token en el registro de pago del plan
-      await this.prisma.paymentPlan.update({
-        where: { id: planOrder.payment.id },
-        data: { transactionId: response.token },
-      });
+      await this.prisma.paymentPlan
+        .update({
+          where: { id: planOrder.payment.id },
+          data: { transactionId: response.token },
+        })
+        .then((data) => console.log('Payment Updated:', data));
 
       return { token: response.token, url: response.url };
     } catch (error: any) {
@@ -894,6 +899,9 @@ export class PaymentService {
       where: { transactionId: token },
       include: { planOrder: true },
     });
+
+    const payments = await this.prisma.paymentPlan.findMany();
+    console.log(payments);
 
     console.log('confirm transaction plans', { token, payment });
     if (!payment || !payment.planOrder) {

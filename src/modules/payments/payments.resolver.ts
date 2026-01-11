@@ -12,6 +12,10 @@ import {
   CreateOrderProductInput,
   OrderProduct,
 } from 'src/graphql/entities/order-product.entity';
+import {
+  CreatePlanOrderInput,
+  PlanOrder,
+} from 'src/graphql/entities/plans.entity';
 
 @Resolver()
 export class PaymentsResolver {
@@ -143,5 +147,42 @@ export class PaymentsResolver {
       status,
       providerId,
     );
+  }
+
+  @Mutation(() => WebpayResponse, {
+    description:
+      'Inicia el flujo de pago para adquirir un plan (PREMIUM o FULL) con intervalo mensual/anual',
+  })
+  @UseGuards(JwtAuthGuard)
+  async buyPlan(
+    @Args('input') input: CreatePlanOrderInput,
+    @Args('returnUrl') returnUrl: string,
+    @Context() context: any,
+  ) {
+    const userId = context.req.user.id;
+
+    // 1. Crear la orden y el registro de pago en la DB
+    const { planOrder } = await this.paymentService.createPlanOrderWithPayment(
+      userId,
+      input,
+    );
+
+    // 2. Obtener el token y la URL de redirección de Webpay
+    return this.paymentService.createWebpayTransactionPlans(
+      planOrder.id,
+      returnUrl,
+    );
+  }
+
+  /**
+   * MUTACIÓN: Confirmar el pago del plan
+   * Se llama cuando el usuario vuelve de la pasarela de pago.
+   */
+  @Mutation(() => PlanOrder, {
+    description:
+      'Confirma la transacción de Webpay y activa el plan en el perfil del proveedor',
+  })
+  async confirmWebPayTransactionPlans(@Args('token') token: string) {
+    return this.paymentService.confirmWebPayTransactionPlans(token);
   }
 }

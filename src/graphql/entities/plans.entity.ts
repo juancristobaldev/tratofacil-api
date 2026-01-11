@@ -6,14 +6,11 @@ import {
   InputType,
   registerEnumType,
 } from '@nestjs/graphql';
-import {
-  ProviderPlan,
-  PaymentProvider,
-  PaymentStatus,
-  OrderStatus,
-} from '@prisma/client';
+import { ProviderPlan, PaymentProvider } from '@prisma/client';
 import { User } from './user.entity';
 import { PlanInterval } from '@prisma/client';
+import { PaymentStatus } from '../enums/payment-status.enum';
+import { OrderStatus } from '../enums/order-status.enum';
 
 registerEnumType(PlanInterval, { name: 'PlanInterval' });
 // =========================================================
@@ -25,8 +22,6 @@ registerEnumType(ProviderPlan, {
   description: 'Planes disponibles para los proveedores: FREE, PREMIUM, FULL',
 });
 
-registerEnumType(OrderStatus, { name: 'OrderStatus' });
-registerEnumType(PaymentStatus, { name: 'PaymentStatus' });
 registerEnumType(PaymentProvider, { name: 'PaymentProvider' });
 
 // =========================================================

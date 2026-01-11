@@ -115,6 +115,7 @@ export class AuthService {
       },
     });
 
+    console.log(user);
     if (!user) throw new NotFoundException('Usuario no encontrado');
     return user;
   }

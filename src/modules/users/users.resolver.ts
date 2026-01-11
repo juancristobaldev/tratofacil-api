@@ -36,7 +36,8 @@ export class UsersResolver {
   async me(@Context() context: any): Promise<User> {
     const userId = Number(context.req.user.id);
     const user = await this.usersService.findOne(userId);
-
+    console.log('return', user as unknown as User);
+    console.log(user);
     // USAMOS EL DOBLE CAST
     return user as unknown as User;
   }

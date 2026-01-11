@@ -121,6 +121,11 @@ input CreateOrderProductInput {
   quantity: Int!
 }
 
+input CreatePlanOrderInput {
+  interval: PlanInterval!
+  plan: ProviderPlan!
+}
+
 input CreateProductInput {
   categoryProductId: Int!
   conditions: ConditionDeliveryInput!
@@ -238,10 +243,20 @@ type Mutation {
   adminVerifyCertificate(id: Int!, verified: Boolean!): ProviderCertificate!
   approveCertificate(id: Int!): ProviderCertificate!
 
+  """
+  Inicia el flujo de pago para adquirir un plan (PREMIUM o FULL) con intervalo mensual/anual
+  """
+  buyPlan(input: CreatePlanOrderInput!, returnUrl: String!): WebpayResponse!
+
   """Confirma el código y crea el perfil de usuario + proveedor"""
   confirmEmailAndCreateUser(code: String!, credentials: CredentialsInput!, identity: IdentityInput!): AuthType!
   confirmPayment(token: String!): Order!
   confirmProductPayment(token: String!): OrderProduct!
+
+  """
+  Confirma la transacción de Webpay y activa el plan en el perfil del proveedor
+  """
+  confirmWebPayTransactionPlans(token: String!): PlanOrder!
   confirmWebpayJob(token: String!): OrderJob!
   confirmWebpayProductTransaction(token: String!): OrderProduct!
   createCategory(input: CreateCategoryInput!): Category!
@@ -405,6 +420,17 @@ type PaymentJob {
   updatedAt: DateTime!
 }
 
+type PaymentPlan {
+  amount: Float!
+  createdAt: DateTime!
+  id: Int!
+  orderId: Int
+  planOrderId: Int
+  status: PaymentStatus!
+  transactionId: String
+  updatedAt: DateTime!
+}
+
 type PaymentProduct {
   amount: Float!
   createdAt: DateTime!
@@ -426,6 +452,23 @@ enum PaymentStatus {
   CONFIRMED
   FAILED
   INITIATED
+}
+
+enum PlanInterval {
+  MONTHLY
+  YEARLY
+}
+
+type PlanOrder {
+  createdAt: DateTime!
+  id: Int!
+  payment: PaymentPlan
+  plan: ProviderPlan!
+  status: OrderStatus!
+  total: Float!
+  updatedAt: DateTime!
+  user: User
+  userId: Int!
 }
 
 type Product {
@@ -461,6 +504,8 @@ type Provider {
   logoUrl: String
   name: String!
   phone: String
+  plan: String!
+  planActive: Boolean!
   reviews: [ProviderReview]
   services: [ServiceProvider]
   slug: String!
@@ -480,6 +525,13 @@ type ProviderCertificate {
   title: String!
   verified: Boolean!
   year: Int
+}
+
+"""Planes disponibles para los proveedores: FREE, PREMIUM, FULL"""
+enum ProviderPlan {
+  FREE
+  FULL
+  PREMIUM
 }
 
 type ProviderReview {
