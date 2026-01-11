@@ -7,6 +7,7 @@ import { User } from './user.entity';
 import { Provider } from './provider.entity';
 import { Product } from './product.entity'; // Importante para la coherencia
 import { PaymentProduct } from './payment.entity';
+import { ShippingInfo } from './shipping.entity';
 
 /**
  * ENTIDAD PAGO DE PRODUCTO
@@ -61,6 +62,9 @@ export class OrderProduct {
   // RELACIONES (Uso de funciones de flecha para evitar fallos de circularidad)
   @Field(() => User, { description: 'Cliente que realizó la compra' })
   client: User;
+
+  @Field(() => ShippingInfo, { description: 'Datos de envio' })
+  shippingInfo: ShippingInfo;
 
   @Field(() => Provider, { description: 'Vendedor del producto' })
   provider: Provider;

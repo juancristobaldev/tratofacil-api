@@ -32,13 +32,17 @@ export class JobsInstaResolver {
   // =========================================================
   // 1. QUERIES (LECTURA)
   // =========================================================
-
+  //myJobs
   @Query(() => [Job], { name: 'jobs' })
   async findAllJobs(
     @Args('skip', { type: () => Int }) skip: number,
     @Args('take', { type: () => Int }) take: number,
   ) {
     return this.jobsInstaService.findAllJobs(skip, take);
+  }
+  @Query(() => [Job], { name: 'myJobs' })
+  async myJobs(@Context() context: any) {
+    return this.jobsInstaService.findByProvider(context?.req?.user?.id);
   }
 
   @Query(() => Job, { name: 'job' })

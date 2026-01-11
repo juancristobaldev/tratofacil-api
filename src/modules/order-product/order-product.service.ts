@@ -14,6 +14,10 @@ import {
   UpdateShippingInput,
 } from '../../graphql/entities/order-product.entity';
 import { WebpayResponse } from '../../graphql/entities/order.entity';
+import {
+  CreateShippingInfoInput,
+  ShippingInfo,
+} from 'src/graphql/entities/shipping.entity';
 
 @Injectable()
 export class OrderProductService {
@@ -37,12 +41,20 @@ export class OrderProductService {
     );
   }
 
+  // Método auxiliar para obtener info por ID de orden
+  async findByOrderProductId(orderProductId: number) {
+    return this.prisma.shippingInfo.findUnique({
+      where: { orderProductId },
+    });
+  }
+
   // =====================================================
   // 2️⃣ Crear Orden de Producto con Cálculo de Comisión
   // =====================================================
   async createOrderProductWithPayment(
     userId: number,
     input: CreateOrderProductInput,
+    shippingInput: CreateShippingInfoInput,
   ) {
     // Buscar el producto físico y validar su existencia
     const product = await this.prisma.product.findUnique({
@@ -96,6 +108,9 @@ export class OrderProductService {
           commission: commission,
 
           status: OrderStatus.PENDING,
+          shippingInfo: {
+            create: shippingInput,
+          },
         },
       });
 
@@ -278,6 +293,7 @@ export class OrderProductService {
         client: true,
         payment: true,
         product: true,
+        shippingInfo: true,
       },
       orderBy: { createdAt: 'desc' },
     });

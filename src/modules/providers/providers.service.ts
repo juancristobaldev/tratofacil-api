@@ -135,7 +135,6 @@ export class ProvidersService {
         name: input.name,
         location: input.location,
         logoUrl: input.logoUrl,
-        phone: input.phone,
       },
       include: { bank: true },
     });

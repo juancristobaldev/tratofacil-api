@@ -164,6 +164,16 @@ input CreateServiceInput {
   slug: String!
 }
 
+input CreateShippingInfoInput {
+  commune: String!
+  dept: String
+  number: String!
+  phone: String!
+  reference: String
+  region: String!
+  street: String!
+}
+
 input CredentialsInput {
   email: String!
   password: String!
@@ -238,7 +248,7 @@ type Mutation {
   createJob(input: CreateJobInput!): Job!
   createOrder(input: CreateOrderInput!): Order!
   createOrderJobWithPayment(input: CreateOrderJobInput!): OrderJob!
-  createOrderProduct(input: CreateOrderProductInput!): OrderProductWithPaymentResponse!
+  createOrderProduct(input: CreateOrderProductInput!, shippingInput: CreateShippingInfoInput!): OrderProductWithPaymentResponse!
   createProduct(input: CreateProductInput!): Product!
   createReview(input: CreateReviewInput!): ProviderReview!
   createReviewJob(input: CreateReviewsJobInput!): ReviewsJob!
@@ -339,6 +349,9 @@ type OrderProduct {
 
   """Empresa de transporte encargada del envío"""
   shippingCompany: String
+
+  """Datos de envio"""
+  shippingInfo: ShippingInfo!
   status: OrderStatus!
   total: Float!
 
@@ -506,6 +519,7 @@ type Query {
   categoriesProducts: [CategoryProduct!]!
   category(id: Int!): Category!
   categoryProduct(id: Int!): CategoryProduct!
+  findAllCategory: [CategoryProduct!]!
   getCertificateById(id: Int!): ProviderCertificate!
   getCertificates(sortOrder: String = "desc", verified: Boolean): [ProviderCertificate!]!
   getMyCertificates: [ProviderCertificate!]!
@@ -525,6 +539,7 @@ type Query {
   mainCategories: [Category!]!
   mainCategoryProducts: [CategoryProduct!]!
   me: User!
+  myJobs: [Job!]!
   myOrderJobs: [OrderJob!]!
   myProvider: Provider
   myServices: [Service!]!
@@ -539,6 +554,7 @@ type Query {
   publicProfile(userId: Int!): User
   serviceDetail(providerId: Int!, serviceId: Int!): ServiceDetail!
   servicesByCategory(categorySlug: String!, city: String): [ServiceByCategory!]!
+  shippingInfoByOrderProduct(orderProductId: Int!): ShippingInfo
   subCategories: [Category!]!
   user(id: Int!): User
   users: [User!]!
@@ -627,6 +643,18 @@ type ServiceProvider {
 type ServiceProviderOnCity {
   city: String!
   serviceProviderId: Int!
+}
+
+type ShippingInfo {
+  commune: String!
+  dept: String
+  id: Int!
+  number: String!
+  orderProductId: Int!
+  phone: String!
+  reference: String
+  region: String!
+  street: String!
 }
 
 input UpdateCategoryInput {

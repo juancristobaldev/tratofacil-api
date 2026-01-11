@@ -32,6 +32,9 @@ export class ProductService {
       console.error(`Error al eliminar archivo físico: ${url}`, error);
     }
   }
+  async findAllCategoriesProduct() {
+    return this.prisma.categoryProduct.findMany();
+  }
 
   /**
    * Crear un nuevo producto físico con múltiples imágenes y condiciones de entrega

@@ -7,6 +7,7 @@ import {
 } from 'src/graphql/entities/product.entity';
 import { ProductService } from './product.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { CategoryProduct } from 'src/graphql/entities/category-product';
 
 @Resolver(() => Product)
 export class ProductResolver {
@@ -60,6 +61,11 @@ export class ProductResolver {
   ) {
     // ✅ CORRECCIÓN: Se cambió findOne por findAll con filtro para devolver un array
     return this.productsService.findAll({ categoryProductId });
+  }
+
+  @Query(() => [CategoryProduct], { name: 'findAllCategory' })
+  async findAllCategory() {
+    return this.productsService.findAllCategoriesProduct();
   }
 
   // =========================================================

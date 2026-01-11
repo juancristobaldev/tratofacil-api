@@ -30,7 +30,15 @@ export class JobsInstaService {
       include: { provider: true },
     });
   }
-
+  async findByProvider(userId: number) {
+    return await this.prisma.job.findMany({
+      where: {
+        provider: {
+          userId,
+        },
+      },
+    });
+  }
   async findAllJobs(skip: number, take: number) {
     // 1. Obtenemos todos los IDs disponibles (Operación ligera)
     const allIds = await this.prisma.job.findMany({
