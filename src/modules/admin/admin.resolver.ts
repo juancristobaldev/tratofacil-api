@@ -20,18 +20,55 @@ import {
   ProviderCertificate,
 } from 'src/graphql/entities/provider.entity';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Job } from 'src/graphql/entities/job.entity';
+import { OrderJob } from 'src/graphql/entities/order-job.entity';
+import { ReviewsJob } from 'src/graphql/entities/reviews-job.entity';
+import { OrderProduct } from 'src/graphql/entities/order-product.entity';
 
 @Resolver()
 @UseGuards(JwtAuthGuard)
 export class AdminResolver {
-  constructor(
-    private readonly adminService: AdminService,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly adminService: AdminService) {}
 
   // ==========================================
   // ADMIN QUERIES (Lectura Global)
   // ==========================================
+  @Query(() => [Job], { name: 'adminJobs' })
+  async getAdminJobs() {
+    return this.adminService.findAllJobs();
+  }
+
+  @Query(() => [OrderJob], { name: 'adminOrderJobs' })
+  async getAdminOrderJobs() {
+    return this.adminService.findAllOrderJobs();
+  }
+
+  @Query(() => [ReviewsJob], { name: 'adminJobReviews' })
+  async getAdminJobReviews() {
+    return this.adminService.findAllJobReviews();
+  }
+
+  // --- MUTATIONS ---
+
+  @Mutation(() => OrderJob, { name: 'adminUpdateOrderJobStatus' })
+  async updateOrderJobStatus(
+    @Args('id', { type: () => Int }) id: number,
+    @Args('status') status: string, // Asegúrate de usar el Enum OrderStatus de ser posible
+  ) {
+    return this.adminService.updateOrderJobStatus(id, status as any);
+  }
+
+  @Mutation(() => Job, { name: 'adminDeleteJob' })
+  async deleteJob(@Args('id', { type: () => Int }) id: number) {
+    return this.adminService.deleteJob(id);
+  }
+
+  @Mutation(() => Boolean, { name: 'adminDeleteJobReview' })
+  async deleteJobReview(@Args('id', { type: () => Int }) id: number) {
+    await this.adminService.deleteJobReview(id);
+    return true;
+  }
+
   @Query(() => [ProviderCertificate])
   async getCertificates(
     @Args('sortOrder', { nullable: true, defaultValue: 'desc' })
@@ -113,6 +150,14 @@ export class AdminResolver {
   })
   async getReviews() {
     return this.adminService.findAllReviews();
+  }
+
+  @Query(() => [OrderProduct], {
+    name: 'adminOrdersProduct',
+    description: 'Moderación de todas las reseñas',
+  })
+  async getOrdersProduct() {
+    return this.adminService.findAllOrderProduct();
   }
 
   // ==========================================

@@ -21,6 +21,22 @@ export class AdminService {
    * Evita errores si el archivo no existe y protege contra URLs externas.
    */
 
+  async findAllOrderProduct() {
+    return await this.prisma.orderProduct.findMany({
+      include: {
+        payment: true,
+        client: true,
+        shippingInfo: true,
+        provider: {
+          include: {
+            user: true,
+          },
+        },
+        product: true,
+      },
+    });
+  }
+
   async getCertificates(
     sortOrder: 'asc' | 'desc' = 'desc',
     verified?: boolean,
@@ -178,7 +194,11 @@ export class AdminService {
         serviceProvider: {
           include: {
             service: true,
-            provider: true,
+            provider: {
+              include: {
+                user: true,
+              },
+            },
           },
         },
         payment: true,
@@ -356,6 +376,70 @@ export class AdminService {
     return this.prisma.providerCertificate.update({
       where: { id },
       data: { verified },
+    });
+  }
+
+  async findAllJobs() {
+    return this.prisma.job.findMany({
+      include: {
+        provider: {
+          include: { user: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // QUERY: adminOrderJobs
+  async findAllOrderJobs() {
+    return this.prisma.orderJob.findMany({
+      include: {
+        client: true,
+        job: {
+          include: {
+            provider: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // QUERY: adminJobReviews
+  async findAllJobReviews() {
+    return this.prisma.reviewsJob.findMany({
+      include: {
+        client: true,
+        job: true,
+        provider: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // MUTATION: adminUpdateOrderJobStatus
+  async updateOrderJobStatus(id: number, status: OrderStatus) {
+    return this.prisma.orderJob.update({
+      where: { id },
+      data: { status },
+    });
+  }
+
+  // MUTATION: adminDeleteJob
+  async deleteJob(id: number) {
+    return this.prisma.job.delete({
+      where: { id },
+    });
+  }
+
+  // MUTATION: adminDeleteJobReview
+  async deleteJobReview(id: number) {
+    return this.prisma.reviewsJob.delete({
+      where: { id },
     });
   }
 }

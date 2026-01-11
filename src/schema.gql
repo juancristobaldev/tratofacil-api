@@ -224,11 +224,14 @@ type Mutation {
   adminCreateCategory(description: String, imageUrl: String, name: String!, parentId: Int, slug: String!): Category!
   adminCreateService(categoryId: Int, description: String, imageUrl: String, name: String!, slug: String!): Service!
   adminDeleteCategory(id: Int!): Boolean!
+  adminDeleteJob(id: Int!): Job!
+  adminDeleteJobReview(id: Int!): Boolean!
   adminDeleteOrder(id: Int!): Boolean!
   adminDeleteReview(id: Int!): Boolean!
   adminDeleteService(id: Int!): Boolean!
   adminDeleteUser(id: Int!): Boolean!
   adminUpdateCategory(description: String, id: Int!, imageUrl: String, name: String, parentId: Int, slug: String): Category!
+  adminUpdateOrderJobStatus(id: Int!, status: String!): OrderJob!
   adminUpdateOrderStatus(id: Int!, status: OrderStatus!): Order!
   adminUpdateService(categoryId: Int, description: String, id: Int!, imageUrl: String, name: String, slug: String): Service!
   adminUpdateUser(id: Int!, role: Role, status: Int): User!
@@ -500,9 +503,15 @@ type ProviderType {
 type Query {
   """Listado de todas las categorías"""
   adminCategories: [Category!]!
+  adminJobReviews: [ReviewsJob!]!
+  adminJobs: [Job!]!
+  adminOrderJobs: [OrderJob!]!
 
   """Listado maestro de todas las órdenes del sistema"""
   adminOrders: [Order!]!
+
+  """Moderación de todas las reseñas"""
+  adminOrdersProduct: [OrderProduct!]!
 
   """Obtener todos los proveedores con sus detalles"""
   adminProviders: [Provider!]!

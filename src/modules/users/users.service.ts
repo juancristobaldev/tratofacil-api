@@ -67,7 +67,13 @@ export class UserService {
           },
         },
         jobOrders: {
-          include: {},
+          include: {
+            job: {
+              include: {
+                provider: true,
+              },
+            },
+          },
         },
       },
     });
