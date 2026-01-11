@@ -120,7 +120,7 @@ model Provider {
   slug     String  @unique
   location String?
   logoUrl  String?
-
+priority       Int          @default(1) 
   // ✅ Campos para manejar la suscripción (Plan)
   plan           ProviderPlan @default(FREE)
   planActive     Boolean      @default(true)

@@ -14,6 +14,12 @@ import {
 } from 'src/graphql/entities/service.entity';
 import { ServiceProviderOnCity } from 'src/graphql/entities/register-provider';
 import { PaymentStatus } from 'src/graphql/enums/payment-status.enum';
+import { ProviderPlan } from '@prisma/client';
+const PLAN_CATEGORY_LIMITS = {
+  [ProviderPlan.FREE]: 1,
+  [ProviderPlan.PREMIUM]: 3,
+  [ProviderPlan.FULL]: Infinity,
+};
 
 @Injectable()
 export class ServicesService {
@@ -43,11 +49,43 @@ export class ServicesService {
     // 2. Obtener el perfil del proveedor
     const provider = await this.prisma.provider.findUnique({
       where: { userId: userId },
+      include: {
+        services: true,
+      },
     });
 
     if (!provider) {
       throw new ForbiddenException(
         'El usuario no tiene un perfil de proveedor activo',
+      );
+    }
+
+    const categoriesUsed = await this.prisma.category.findMany({
+      where: {
+        services: {
+          some: {
+            serviceProviders: {
+              some: {
+                providerId: provider.id,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    console.log({ categoriesUsed });
+
+    const limit = PLAN_CATEGORY_LIMITS[provider.plan] || 1;
+
+    console.log(categoriesUsed.length >= limit, categoriesUsed.length, limit);
+    console.log(categoriesUsed[0].id, serviceBase.categoryId);
+    if (
+      categoriesUsed.length >= limit &&
+      categoriesUsed[0].id !== serviceBase.categoryId
+    ) {
+      throw new ForbiddenException(
+        `Tu plan ${provider.plan} solo permite ofrecer servicios en ${limit} categoría(s). Actualiza tu plan para añadir más.`,
       );
     }
 
@@ -159,6 +197,7 @@ export class ServicesService {
   /**
    * DETALLE DE SERVICIO ESPECÍFICO (ServiceProvider)
    */
+
   async findServiceDetail(
     serviceId: number,
     providerId: number,
