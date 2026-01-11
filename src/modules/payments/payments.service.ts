@@ -861,19 +861,17 @@ export class PaymentService {
     interval: PlanInterval = PlanInterval.MONTHLY,
   ) {
     // ✅ Cálculo de fecha de expiración dinámica
-    const planEndsAt = new Date();
+    let planEndsAt: Date | null = new Date();
+
     if (plan === ProviderPlan.FREE) {
       // El plan FREE no expira usualmente, o puedes setearlo a nulo
-      return this.prisma.provider.update({
-        where: { id: providerId },
-        data: { plan, planEndsAt: null, planActive: true },
-      });
-    }
-
-    if (interval === PlanInterval.MONTHLY) {
-      planEndsAt.setMonth(planEndsAt.getMonth() + 1);
+      planEndsAt = null;
     } else {
-      planEndsAt.setFullYear(planEndsAt.getFullYear() + 1);
+      if (interval === PlanInterval.YEARLY) {
+        planEndsAt.setFullYear(planEndsAt.getFullYear() + 1);
+      } else {
+        planEndsAt.setMonth(planEndsAt.getMonth() + 1);
+      }
     }
 
     const provider = await this.prisma.provider.update({
