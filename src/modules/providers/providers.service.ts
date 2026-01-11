@@ -4,28 +4,40 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ProviderPlan } from '@prisma/client'; // ✅ Asegúrate de tener el Enum en Prisma
 import {
-  RegisterProviderInput, // DTO que definimos antes que une User + Provider + Bank
-} from 'src/graphql/entities/register-provider';
-import {
+  CreateProviderInput,
   UpdateProviderInput,
   BankAccountInput,
-  CreateProviderInput,
-  CreateReviewInput,
 } from 'src/graphql/entities/provider.entity';
+// Importa tus inputs de registro y reseñas según tus archivos
+import { CreateReviewInput } from 'src/graphql/entities/provider.entity';
+
+// ✅ 1. CONFIGURACIÓN DE PLANES (Comisiones y Prioridad)
+const PLAN_COMMISSIONS = {
+  [ProviderPlan.FREE]: 0.25, // 25%
+  [ProviderPlan.PREMIUM]: 0.1, // 10%
+  [ProviderPlan.FULL]: 0.03, // 3%
+};
+
+const PLAN_PRIORITY = {
+  [ProviderPlan.FULL]: 3,
+  [ProviderPlan.PREMIUM]: 2,
+  [ProviderPlan.FREE]: 1,
+};
 
 @Injectable()
 export class ProvidersService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Generador de slug nativo (sin dependencias externas)
+   * Generador de slug nativo
    */
   private generateSlug(name: string): string {
     return name
       .toLowerCase()
       .trim()
-      .normalize('NFD') // Quita acentos
+      .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^\w\s-]/g, '')
       .replace(/[\s_-]+/g, '-')
@@ -33,14 +45,57 @@ export class ProvidersService {
   }
 
   /**
-   * REGISTRO DE PROVEEDOR (Lógica nativa y atómica)
-   * Alineado para guardar nombre y teléfono en la tabla Provider directamente.
+   * ✅ NUEVO: CAMBIAR PLAN Y RECALCULAR COMISIONES
+   * Se llama tras confirmar un pago de suscripción
    */
+  async setPlan(providerId: number, plan: ProviderPlan) {
+    const planEndsAt =
+      plan === ProviderPlan.FREE
+        ? null
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
 
+    const provider = await this.prisma.provider.update({
+      where: { id: providerId },
+      data: {
+        plan,
+        planActive: true,
+        planEndsAt,
+      },
+    });
+
+    // Actualiza las comisiones de todos sus servicios al nuevo porcentaje
+    await this.recalculateCommissions(providerId, plan);
+
+    return provider;
+  }
+
+  /**
+   * ✅ NUEVO: HELPER DE RECALCULO
+   */
+  private async recalculateCommissions(providerId: number, plan: ProviderPlan) {
+    const rate = PLAN_COMMISSIONS[plan];
+    const services = await this.prisma.serviceProvider.findMany({
+      where: { providerId },
+    });
+
+    for (const service of services) {
+      if (service.price) {
+        const commission = Math.round(service.price * rate);
+        const netAmount = service.price - commission;
+
+        await this.prisma.serviceProvider.update({
+          where: { id: service.id },
+          data: { commission, netAmount },
+        });
+      }
+    }
+  }
+
+  /**
+   * RESEÑAS
+   */
   async createReview(clientId: number, input: CreateReviewInput) {
     const { orderId, providerId, rating, comment } = input;
-
-    // Verificamos que la orden pertenezca al cliente y no tenga reseña previa
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
     });
@@ -50,49 +105,33 @@ export class ProvidersService {
     }
 
     return this.prisma.providerReview.create({
-      data: {
-        rating,
-        comment,
-        clientId,
-        providerId,
-        orderId,
-      },
+      data: { rating, comment, clientId, providerId, orderId },
     });
   }
-  async register(userId: number, input: CreateProviderInput) {
-    // Nota: 'input' aquí viene de la lógica donde ya se separó identity y bank
-    const { name, company, location, bank, logoUrl } = input;
 
-    // 1. Verificar si el usuario ya tiene un perfil de proveedor
+  /**
+   * REGISTRO
+   */
+  async register(userId: number, input: CreateProviderInput) {
+    const { name, company, location, bank, logoUrl } = input;
     const existing = await this.prisma.provider.findUnique({
       where: { userId },
     });
 
-    console.log(existing);
     if (existing)
-      throw new BadRequestException(
-        'El usuario ya tiene un perfil de proveedor activo',
-      );
+      throw new BadRequestException('El usuario ya tiene un perfil activo');
 
-    // 2. Generar Slug único
     let slug = this.generateSlug(name);
     const slugCheck = await this.prisma.provider.findUnique({
       where: { slug },
     });
-    if (slugCheck) {
-      slug = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
-    }
+    if (slugCheck) slug = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     await this.prisma.user.update({
-      where: {
-        id: userId,
-      },
-      data: {
-        displayName: name,
-      },
+      where: { id: userId },
+      data: { displayName: name },
     });
 
-    // 3. Crear Proveedor y Banco en una sola transacción de Prisma
     return this.prisma.provider.create({
       data: {
         userId,
@@ -101,31 +140,17 @@ export class ProvidersService {
         location: location || 'Chile',
         bio: '',
         logoUrl: logoUrl || '',
-        // Relación nativa con BankAccount
-        bank: bank
-          ? {
-              create: {
-                bankName: bank.bankName,
-                accountNumber: bank.accountNumber,
-                accountType: bank.accountType,
-                rut: bank.rut,
-                email: bank.email,
-              },
-            }
-          : undefined,
+        plan: ProviderPlan.FREE, // Por defecto al registrarse
+        bank: bank ? { create: { ...bank } } : undefined,
       },
-      include: {
-        bank: true,
-        user: true,
-      },
+      include: { bank: true, user: true },
     });
   }
 
   /**
-   * ACTUALIZAR DATOS DEL PROVEEDOR
+   * ACTUALIZAR PROVEEDOR
    */
   async updateProviderData(id: number, input: UpdateProviderInput) {
-    // Verificamos existencia
     const provider = await this.prisma.provider.findUnique({ where: { id } });
     if (!provider) throw new NotFoundException('Proveedor no encontrado');
 
@@ -141,7 +166,7 @@ export class ProvidersService {
   }
 
   /**
-   * ACTUALIZAR DATOS BANCARIOS
+   * ACTUALIZAR BANCO
    */
   async updateBankData(providerId: number, input: BankAccountInput) {
     const provider = await this.prisma.provider.findUnique({
@@ -150,29 +175,19 @@ export class ProvidersService {
     });
 
     if (!provider || !provider.bank) {
-      // Si no tiene banco, lo creamos
       return this.prisma.bankAccount.create({
-        data: {
-          ...input,
-          providerId: providerId,
-        },
+        data: { ...input, providerId },
       });
     }
 
     return this.prisma.bankAccount.update({
       where: { id: provider.bank.id },
-      data: {
-        bankName: input.bankName,
-        accountNumber: input.accountNumber,
-        accountType: input.accountType,
-        rut: input.rut,
-        email: input.email,
-      },
+      data: { ...input },
     });
   }
 
   /**
-   * QUERIES DE BÚSQUEDA (Lectura Limpia)
+   * BÚSQUEDAS
    */
   async findByUserId(userId: number) {
     return this.prisma.provider.findUnique({
@@ -186,12 +201,22 @@ export class ProvidersService {
     });
   }
 
+  /**
+   * ✅ ACTUALIZADO: LISTADO CON PRIORIDAD DE PLAN
+   */
   async findAll() {
-    return this.prisma.provider.findMany({
+    const providers = await this.prisma.provider.findMany({
       include: {
         bank: true,
         user: { select: { email: true, displayName: true } },
       },
+    });
+
+    // Ordena: FULL primero, luego PREMIUM, luego FREE
+    return providers.sort((a, b) => {
+      const priorityA = PLAN_PRIORITY[a.plan] || 1;
+      const priorityB = PLAN_PRIORITY[b.plan] || 1;
+      return priorityB - priorityA;
     });
   }
 

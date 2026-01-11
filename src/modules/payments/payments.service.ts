@@ -10,11 +10,29 @@ import {
   CreateOrderInput,
   WebpayResponse,
 } from 'src/graphql/entities/order.entity';
-import { PaymentStatus, PaymentProvider } from '@prisma/client';
+import {
+  PaymentStatus,
+  PaymentProvider,
+  ProviderPlan,
+  PlanInterval,
+} from '@prisma/client';
 import { WebpayPlus, Options, Environment } from 'transbank-sdk';
 import { OrderStatus } from 'src/graphql/enums/order-status.enum';
 import { CreateOrderProductInput } from 'src/graphql/entities/order-product.entity';
 import { CreateOrderJobInput } from 'src/graphql/entities/order-job.entity';
+import { CreatePlanOrderInput } from 'src/graphql/entities/plans.entity';
+
+const PLAN_COMMISSIONS = {
+  [ProviderPlan.FREE]: 0.25, // 25%
+  [ProviderPlan.PREMIUM]: 0.1, // 10%
+  [ProviderPlan.FULL]: 0.03, // 3%
+};
+
+const PLAN_PRIORITY = {
+  [ProviderPlan.FULL]: 3,
+  [ProviderPlan.PREMIUM]: 2,
+  [ProviderPlan.FREE]: 1,
+};
 
 @Injectable()
 export class PaymentService {
@@ -36,6 +54,49 @@ export class PaymentService {
           : Environment.Integration,
       ),
     );
+  }
+
+  async createPlanSubscription(userId: number, plan: ProviderPlan) {
+    // Definimos los precios según tu Frontend
+    const planPrices = {
+      [ProviderPlan.FREE]: 0,
+      [ProviderPlan.PREMIUM]: 29000, // Ajustado a CLP (puedes usar 29 si es USD)
+      [ProviderPlan.FULL]: 79000,
+    };
+
+    const price = planPrices[plan];
+    if (price === 0)
+      throw new BadRequestException('El plan FREE no requiere pago');
+
+    const provider = await this.prisma.provider.findUnique({
+      where: { userId },
+    });
+    if (!provider)
+      throw new ForbiddenException('Debes ser proveedor para comprar un plan');
+
+    return this.prisma.$transaction(async (tx) => {
+      // Creamos una orden especial (sin serviceProviderId)
+      // Usamos wcOrderKey para marcar que es una suscripción
+      const order = await tx.order.create({
+        data: {
+          clientId: userId,
+          total: price,
+          status: OrderStatus.PENDING,
+          wcOrderKey: `PLAN_${plan}`, // ✅ Identificador de plan
+        },
+      });
+
+      const payment = await tx.payment.create({
+        data: {
+          orderId: order.id,
+          amount: price,
+          provider: PaymentProvider.WEBPAY,
+          status: PaymentStatus.INITIATED,
+        },
+      });
+
+      return { order, payment };
+    });
   }
 
   async createOrderProductWithPayment(
@@ -415,6 +476,25 @@ export class PaymentService {
     });
   }
 
+  private async recalculateCommissions(providerId: number, plan: ProviderPlan) {
+    const rate = PLAN_COMMISSIONS[plan];
+    const services = await this.prisma.serviceProvider.findMany({
+      where: { providerId },
+    });
+
+    for (const service of services) {
+      if (service.price) {
+        const commission = Math.round(service.price * rate);
+        const netAmount = service.price - commission;
+
+        await this.prisma.serviceProvider.update({
+          where: { id: service.id },
+          data: { commission, netAmount },
+        });
+      }
+    }
+  }
+
   async getOrdersProductsByProviderId(providerId: number) {
     // Buscamos órdenes vinculadas a cualquier oferta (ServiceProvider) de este proveedor
     return this.prisma.orderProduct.findMany({
@@ -460,28 +540,6 @@ export class PaymentService {
   // =====================================================
   // 6️⃣ Actualizar Estado de la Orden
   // =====================================================
-  async updateOrderStatus(
-    orderId: number,
-    status: OrderStatus,
-    providerId: number,
-  ) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      include: { serviceProvider: true },
-    });
-
-    // Validamos que la orden pertenezca al proveedor que intenta actualizarla
-    if (!order || order.serviceProvider?.providerId !== providerId) {
-      throw new ForbiddenException(
-        'No tienes permiso para actualizar esta orden',
-      );
-    }
-
-    return this.prisma.order.update({
-      where: { id: orderId },
-      data: { status },
-    });
-  }
 
   // =====================================================
   // 2️⃣ Crear Orden de Trabajo y Registro de Pago
@@ -684,6 +742,235 @@ export class PaymentService {
     }
 
     return this.prisma.orderJob.update({
+      where: { id: orderId },
+      data: { status },
+    });
+  }
+  async createPlanOrderWithPayment(
+    userId: number,
+    input: CreatePlanOrderInput,
+  ) {
+    const { plan, interval } = input;
+
+    // Precios base mensuales definidos en el backend
+    const planPrices = {
+      [ProviderPlan.FREE]: 0,
+      [ProviderPlan.PREMIUM]: 29000,
+      [ProviderPlan.FULL]: 79000,
+    };
+
+    const monthlyPrice = planPrices[plan];
+    if (monthlyPrice === undefined)
+      throw new BadRequestException('Plan no válido');
+    if (monthlyPrice <= 0)
+      throw new BadRequestException('Este plan no requiere pago');
+
+    // ✅ Cálculo del Total: Aplicar -20% si es YEARLY
+    let total = 0;
+    if (interval === PlanInterval.MONTHLY) {
+      total = monthlyPrice;
+    } else {
+      // (Precio mensual * 12 meses) con 20% de descuento
+      total = Math.round(monthlyPrice * 12 * 0.8);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // Crear Orden de Plan con el intervalo seleccionado
+      const planOrder = await tx.planOrder.create({
+        data: {
+          userId: userId,
+          plan: plan,
+          interval: interval, // Guardamos si es MONTHLY o YEARLY
+          total: total,
+          status: OrderStatus.PROCESSING,
+        },
+      });
+
+      // Crear Pago vinculado a la nueva tabla paymentPlan
+      const payment = await tx.paymentPlan.create({
+        data: {
+          planOrderId: planOrder.id,
+          amount: total,
+          provider: PaymentProvider.WEBPAY,
+          status: PaymentStatus.INITIATED,
+        },
+      });
+
+      console.log('create plan order with payment', { planOrder, payment });
+      return { planOrder, payment };
+    });
+  }
+
+  /**
+   * 2. Iniciar Transacción Webpay para Planes
+   */
+  async createWebpayTransactionPlans(
+    planOrderId: number,
+    returnUrl: string,
+  ): Promise<WebpayResponse> {
+    const planOrder = await this.prisma.planOrder.findUnique({
+      where: { id: planOrderId },
+      include: { payment: true },
+    });
+
+    if (!planOrder) throw new NotFoundException('Orden de plan no encontrada');
+    if (!planOrder.payment)
+      throw new BadRequestException('No existe pago asociado');
+
+    if (
+      planOrder.status === OrderStatus.COMPLETED ||
+      planOrder.status === OrderStatus.SUCCESS
+    ) {
+      throw new BadRequestException('Plan ya pagado o procesado');
+    }
+
+    const buyOrder = `PLAN-${planOrder.id}-${Date.now()}`;
+    const sessionId = `SES-PLN-${planOrder.userId}-${Date.now()}`;
+
+    try {
+      const response = await this.tbk().create(
+        buyOrder,
+        sessionId,
+        planOrder.total,
+        returnUrl,
+      );
+
+      console.log('create transaction plans', { token: response.token });
+
+      // Actualizamos el token en el registro de pago del plan
+      await this.prisma.paymentPlan.update({
+        where: { id: planOrder.payment.id },
+        data: { transactionId: response.token },
+      });
+
+      return { token: response.token, url: response.url };
+    } catch (error: any) {
+      throw new InternalServerErrorException(
+        'Error al iniciar Webpay Planes: ' + error.message,
+      );
+    }
+  }
+
+  /**
+   * 3. Confirmar Transacción y Activar Suscripción Dinámica
+   */
+
+  async setPlan(
+    providerId: number,
+    plan: ProviderPlan,
+    interval: PlanInterval = PlanInterval.MONTHLY,
+  ) {
+    // ✅ Cálculo de fecha de expiración dinámica
+    const planEndsAt = new Date();
+    if (plan === ProviderPlan.FREE) {
+      // El plan FREE no expira usualmente, o puedes setearlo a nulo
+      return this.prisma.provider.update({
+        where: { id: providerId },
+        data: { plan, planEndsAt: null, planActive: true },
+      });
+    }
+
+    if (interval === PlanInterval.MONTHLY) {
+      planEndsAt.setMonth(planEndsAt.getMonth() + 1);
+    } else {
+      planEndsAt.setFullYear(planEndsAt.getFullYear() + 1);
+    }
+
+    const provider = await this.prisma.provider.update({
+      where: { id: providerId },
+      data: {
+        plan,
+        planActive: true,
+        planEndsAt,
+      },
+    });
+
+    // Recalcular comisiones (lógica ya implementada anteriormente)
+    await this.recalculateCommissions(providerId, plan);
+
+    return provider;
+  }
+
+  async confirmWebPayTransactionPlans(token: string) {
+    const payment = await this.prisma.paymentPlan.findFirst({
+      where: { transactionId: token },
+      include: { planOrder: true },
+    });
+
+    console.log('confirm transaction plans', { token, payment });
+    if (!payment || !payment.planOrder) {
+      throw new NotFoundException('Transacción de plan no encontrada');
+    }
+
+    try {
+      const commitResponse = await this.tbk().commit(token);
+      console.log({ commitResponse });
+
+      const success =
+        commitResponse.status === 'AUTHORIZED' &&
+        commitResponse.response_code === 0;
+
+      const newPaymentStatus = success
+        ? PaymentStatus.CONFIRMED
+        : PaymentStatus.FAILED;
+      const newOrderStatus = success ? OrderStatus.SUCCESS : OrderStatus.FAILED;
+
+      console.log({ newPaymentStatus, newOrderStatus });
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        await tx.paymentPlan
+          .update({
+            where: { id: payment.id },
+            data: { status: newPaymentStatus },
+          })
+          .then((data) => console.log('Payment Updated:', data));
+
+        return tx.planOrder.update({
+          where: { id: payment.planOrderId },
+          data: { status: newOrderStatus },
+          include: { payment: true, user: true },
+        });
+      });
+
+      // ✅ Activación con duración dinámica (Mes vs Año)
+      if (success) {
+        const provider = await this.prisma.provider.findUnique({
+          where: { userId: result.userId },
+        });
+
+        if (provider) {
+          // Enviamos el intervalo al servicio para que calcule la fecha de fin correcta
+          await this.setPlan(provider.id, result.plan, result.interval);
+        }
+      }
+
+      return result;
+    } catch (error: any) {
+      throw new InternalServerErrorException(
+        'Error al confirmar Plan Webpay: ' + error.message,
+      );
+    }
+  }
+
+  // =====================================================
+  // 4️⃣ Otros Métodos
+  // =====================================================
+
+  async updateOrderStatus(
+    orderId: number,
+    status: OrderStatus,
+    providerId: number,
+  ) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { serviceProvider: true },
+    });
+
+    if (!order || order.serviceProvider?.providerId !== providerId) {
+      throw new ForbiddenException('No autorizado para esta orden');
+    }
+
+    return this.prisma.order.update({
       where: { id: orderId },
       data: { status },
     });

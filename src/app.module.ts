@@ -24,9 +24,11 @@ import { ProductModule } from './modules/product/product.module';
 import { OrderProductModule } from './modules/order-product/order-product.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { JobsInstaModule } from './modules/jobs-insta/jobs-insta.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(), // ✅ Habilita Cron Jobs globalmente
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       // CORRECCIÓN CRÍTICA PARA VERCEL:
